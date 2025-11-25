@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if mode == 'approve' %}Duyệt Yêu Cầu{% else %}Quản Lý Sinh Viên{% endif %}
+{% endblock %}
+
+{% block extra_style %}
+{% if mode == 'manage' %}
+.edit-modal-overlay {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4);
+}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<h3>
+    <i class="fas fa-{% if mode == 'approve' %}user-check{% else %}graduation-cap{% endif %}"></i> 
+    {% if mode == 'approve' %}Duyệt Yêu Cầu Tham Gia Nhóm{% else %}Quản Lý Sinh Viên Trong Nhóm{% endif %}
+</h3>
+
+{% if mode == 'approve' %}
+<a href="/dashboard" class="btn btn-outline-secondary mb-3"><i class="fas fa-arrow-left"></i> Quay lại Dashboard</a>
+
+{% if students %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th><i class="fas fa-user"></i> Username</th>
+                <th><i class="fas fa-id-card"></i> Họ Tên</th>
+                <th><i class="fas fa-hashtag"></i> Mã SV</th>
+                <th><i class="fas fa-school"></i> Lớp</th>
+                <th><i class="fas fa-envelope"></i> Email</th>
+                <th><i class="fas fa-users"></i> Nhóm Yêu Cầu</th>
+                <th><i class="fas fa-comment"></i> Lời nhắn</th>
+                <th><i class="fas fa-cogs"></i> Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td>{{ student[1] }}</td>
+                <td>{{ student[2] or 'N/A' }}</td>
+                <td><code>{{ student[3] or 'N/A' }}</code></td>
+                <td>{{ student[4] or 'N/A' }}</td>
+                <td>{{ student[5] }}</td>
+                <td>{{ student[6] }}</td>
+                <td><em>{{ student[8] or '' }}</em></td>
+                <td>
+                    <form method="post" class="d-flex align-items-center">
+                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                        <input type="hidden" name="group_id" value="{{ student[7] }}">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        
+                        <input type="text" name="note" class="form-control form-control-sm me-2" placeholder="Lý do/Ghi chú" style="min-width: 120px;">
+                        
+                        <button type="submit" name="action" value="approve" class="btn btn-success btn-sm me-1" title="Duyệt">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm" title="Từ chối" onclick="return confirm('Từ chối sinh viên này?')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info"><i class="fas fa-info-circle"></i> Không có sinh viên nào đang chờ duyệt.</div>
+{% endif %}
+
+{% else %}
+{% if students %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th><i class="fas fa-users"></i> Nhóm</th>
+                <th><i class="fas fa-user"></i> Username</th>
+                <th><i class="fas fa-id-card"></i> Họ Tên</th>
+                <th><i class="fas fa-hashtag"></i> Mã SV</th>
+                <th><i class="fas fa-school"></i> Lớp</th>
+                <th><i class="fas fa-envelope"></i> Email</th>
+                <th><i class="fas fa-cogs"></i> Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr class="{{ 'table-warning' if student[8] == 'left' else '' }}">
+                <td class="fw-bold text-primary">{{ student[6] }}</td>
+                <td>{{ student[1] }}</td>
+                <td>{{ student[2] }}</td>
+                <td><code>{{ student[3] }}</code></td>
+                <td>{{ student[4] }}</td>
+                <td>{{ student[5] }}</td>
+                <td>
+                    {% if student[8] == 'left' %}
+                    <span class="badge bg-warning text-dark mb-2">Đã rời nhóm</span><br>
+                    <form method="post" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <input type="hidden" name="action" value="add_back">
+                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                        <input type="hidden" name="group_id" value="{{ student[7] }}">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-user-plus"></i> Thêm lại
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <input type="hidden" name="action" value="remove_from_group">
+                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                        <input type="hidden" name="group_id" value="{{ student[7] }}">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xoá sinh viên {{ student[1] }} khỏi nhóm {{ student[6] }}?')">
+                            <i class="fas fa-user-minus"></i> Xoá
+                        </button>
+                    </form>
+                    {% endif %}
+                    
+                    <form method="post" class="d-inline ms-1">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <input type="hidden" name="action" value="block">
+                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                        <input type="hidden" name="group_id" value="{{ student[7] }}">
+                        <button type="submit" class="btn btn-dark btn-sm" onclick="return confirm('Chặn sinh viên này tham gia nhóm?')">
+                            <i class="fas fa-ban"></i> Chặn
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info"><i class="fas fa-info-circle"></i> Không có sinh viên nào trong nhóm của bạn.</div>
+{% endif %}
+<a href="/dashboard" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay lại Dashboard</a>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if mode == 'manage' %}
+<script>
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('edit_user_id').value = this.getAttribute('data-id');
+            document.getElementById('edit_full_name').value = this.getAttribute('data-name');
+            document.getElementById('edit_class_name').value = this.getAttribute('data-class');
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

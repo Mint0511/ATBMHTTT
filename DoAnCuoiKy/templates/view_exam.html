@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xem Đề Thi: {{ exam_title }} - Hệ Thống Quản Lý Đề Thi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card-custom {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .iframe-container {
+            height: 80vh;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card card-custom">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><i class="fas fa-eye"></i> {{ exam_title }}</h3>
+                        <div id="timer-container" class="bg-danger px-3 py-2 rounded fw-bold" style="display: none;">
+                            <i class="fas fa-stopwatch"></i> Còn lại: <span id="countdown">00:00:00</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if file_url %}
+                        <script>
+                            // Tính toán thời gian còn lại
+                            // Giả sử thời gian hết hạn là expire_time từ server (cần truyền vào template)
+                            // Ở đây demo đếm ngược đơn giản dựa trên session hoặc thời gian cố định
+                            // Để đơn giản cho demo, ta lấy thời gian hết hạn từ server
+                            
+                            document.addEventListener('DOMContentLoaded', function() {
+                                document.getElementById('timer-container').style.display = 'block';
+                                
+                                // Lấy thời gian hết hạn từ biến server (cần update app.py để truyền biến này)
+                                // Tạm thời dùng JS để demo đếm ngược 60 phút hoặc đến mốc expire
+                                var expireTime = new Date("{{ expire_time }}").getTime();
+                                
+                                var x = setInterval(function() {
+                                    var now = new Date().getTime();
+                                    var distance = expireTime - now;
+                                    
+                                    if (distance < 0) {
+                                        clearInterval(x);
+                                        document.getElementById("countdown").innerHTML = "HẾT GIỜ";
+                                        // Có thể thêm logic disable iframe hoặc redirect
+                                        alert("Đã hết giờ làm bài!");
+                                        window.location.href = "/dashboard";
+                                        return;
+                                    }
+                                    
+                                    var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                    var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                    var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                                    
+                                    document.getElementById("countdown").innerHTML = 
+                                        (hours < 10 ? "0" + hours : hours) + ":" + 
+                                        (minutes < 10 ? "0" + minutes : minutes) + ":" + 
+                                        (seconds < 10 ? "0" + seconds : seconds);
+                                }, 1000);
+                            });
+                        </script>
+                        
+                        <div class="iframe-container" style="position: relative; overflow: hidden;">
+                            <!-- Watermark Layer -->
+                            <div style="position: absolute; inset: 0; z-index: 20; pointer-events: none; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; overflow: hidden; opacity: 0.1;">
+                                {% for i in range(15) %}
+                                <div style="transform: rotate(-30deg); margin: 40px; font-size: 24px; font-weight: bold; color: #000; white-space: nowrap; user-select: none;">
+                                    {{ current_user.student_id }} - {{ current_user.full_name }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Sử dụng PDF.js viewer để kiểm soát tốt hơn (chặn copy/download) -->
+                            <iframe src="/static/pdfjs/web/viewer.html?file={{ file_url | urlencode }}" style="width:100%;height:100%;border:none;" oncontextmenu="return false;"></iframe>
+                        </div>
+                        {% else %}
+                        <div class="text-center mb-4">
+                            <i class="fas fa-shield-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Vui lòng xác thực để xem đề thi.</p>
+                        </div>
+
+                        <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
+                            {% if auth_mode == 'both' or auth_mode == 'otp' %}
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link {% if auth_mode == 'otp' or auth_mode == 'both' %}active{% endif %}" id="otp-tab" data-bs-toggle="tab" data-bs-target="#otp-pane" type="button" role="tab">
+                                    <i class="fas fa-envelope"></i> Xác thực qua Email (OTP)
+                                </button>
+                            </li>
+                            {% endif %}
+                            {% if auth_mode == 'both' or auth_mode == 'pin' %}
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link {% if auth_mode == 'pin' %}active{% endif %}" id="pin-tab" data-bs-toggle="tab" data-bs-target="#pin-pane" type="button" role="tab">
+                                    <i class="fas fa-key"></i> Mã Ca Thi (PIN)
+                                </button>
+                            </li>
+                            {% endif %}
+                        </ul>
+
+                        <div class="tab-content" id="authTabContent">
+                            <!-- OTP Form -->
+                            {% if auth_mode == 'both' or auth_mode == 'otp' %}
+                            <div class="tab-pane fade {% if auth_mode == 'otp' or auth_mode == 'both' %}show active{% endif %}" id="otp-pane" role="tabpanel">
+                                <div class="alert alert-info">
+                                    <small><i class="fas fa-info-circle"></i> Dành cho thi trực tuyến hoặc làm bài tập về nhà.</small>
+                                </div>
+                                <div class="text-center mb-3">
+                                    <a href="/send_otp/{{ eid }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-paper-plane"></i> Gửi mã OTP qua Email
+                                    </a>
+                                </div>
+                                <form method="post" class="mx-auto" style="max-width: 400px;">
+                                    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                    <input type="hidden" name="auth_type" value="otp">
+                                    <div class="mb-3">
+                                        <label for="otp" class="form-label"><i class="fas fa-lock"></i> Nhập mã OTP:</label>
+                                        <input type="text" id="otp" name="otp" class="form-control" placeholder="Nhập 6 số OTP từ email" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-check"></i> Xác nhận OTP
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+
+                            <!-- PIN Form -->
+                            {% if auth_mode == 'both' or auth_mode == 'pin' %}
+                            <div class="tab-pane fade {% if auth_mode == 'pin' %}show active{% endif %}" id="pin-pane" role="tabpanel">
+                                <div class="alert alert-warning">
+                                    <small><i class="fas fa-exclamation-triangle"></i> Dành cho thi tập trung tại phòng máy. Mã PIN do giám thị cung cấp.</small>
+                                </div>
+                                <form method="post" class="mx-auto" style="max-width: 400px;">
+                                    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                    <input type="hidden" name="auth_type" value="pin">
+                                    <div class="mb-3">
+                                        <label for="pin_input" class="form-label"><i class="fas fa-keyboard"></i> Nhập Mã Ca Thi:</label>
+                                        <input type="text" id="pin_input" name="pin_input" class="form-control" placeholder="Nhập mã PIN từ giáo viên" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="fas fa-unlock"></i> Mở Đề Thi
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, msg in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+                                        {{ msg }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        {% endif %}
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-dark me-2" onclick="showHexPreview({{ eid }})">
+                                <i class="fas fa-terminal"></i> Xem mã Hex (Demo)
+                            </button>
+                            <a href="/download_encrypted/{{ eid }}" class="btn btn-warning me-2">
+                                <i class="fas fa-file-lock"></i> Tải file đã mã hoá (Demo)
+                            </a>
+                            <a href="/dashboard" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hex Preview Modal -->
+    <div class="modal fade" id="hexModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title font-monospace"><i class="fas fa-user-secret"></i> Dữ Liệu Đã Mã Hoá (AES-GCM)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="hexContent" class="font-monospace" style="color: #0f0; font-size: 0.8rem; overflow: auto; max-height: 70vh;"></pre>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showHexPreview(eid) {
+            fetch(`/preview_encrypted/${eid}`)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('hexContent').textContent = data;
+                    new bootstrap.Modal(document.getElementById('hexModal')).show();
+                })
+                .catch(err => alert('Lỗi tải dữ liệu: ' + err));
+        }
+    </script>
+</body>
+</html>

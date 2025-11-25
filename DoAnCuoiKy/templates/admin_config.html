@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cấu Hình Hệ Thống - Hệ Thống Quản Lý Đề Thi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card-custom {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-md-10">
+                <div class="card card-custom">
+                    <div class="card-header bg-warning text-white text-center">
+                        <h2 class="mb-0"><i class="fas fa-cog"></i> Cấu Hình Hệ Thống</h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                            <!-- Email gửi OTP -->
+                            <div class="mb-3">
+                                <label for="mail_username" class="form-label fw-bold"><i class="fas fa-envelope"></i> Gmail gửi OTP</label>
+                                <input type="email" id="mail_username" name="mail_username" class="form-control" placeholder="vd: yourmail@gmail.com" value="{{ config.mail_username }}" required>
+                            </div>
+
+                            <!-- Mật khẩu ứng dụng Gmail -->
+                            <div class="mb-3">
+                                <label for="mail_password" class="form-label fw-bold"><i class="fas fa-lock"></i> Mật khẩu ứng dụng Gmail</label>
+                                <input type="password" id="mail_password" name="mail_password" class="form-control" placeholder="Mật khẩu ứng dụng" value="{{ config.mail_password }}" required>
+                            </div>
+
+                            <!-- Tên trường -->
+                            <div class="mb-3">
+                                <label for="school_name" class="form-label fw-bold"><i class="fas fa-school"></i> Tên trường</label>
+                                <input type="text" id="school_name" name="school_name" class="form-control" value="{{ config.school_name }}">
+                            </div>
+
+                            <!-- Thời gian mặc định mở đề (phút) -->
+                            <div class="mb-3">
+                                <label for="default_release_offset" class="form-label fw-bold"><i class="fas fa-clock"></i> Thời gian mặc định mở đề (phút)</label>
+                                <input type="number" id="default_release_offset" name="default_release_offset" class="form-control" value="{{ config.default_release_offset }}" min="0" required>
+                            </div>
+
+                            <!-- Thời gian mặc định hết hạn xem đề (phút) -->
+                            <div class="mb-3">
+                                <label for="default_expire_minutes" class="form-label fw-bold"><i class="fas fa-clock"></i> Thời gian mặc định hết hạn xem đề (phút)</label>
+                                <input type="number" id="default_expire_minutes" name="default_expire_minutes" class="form-control" value="{{ config.default_expire_minutes }}" min="1" required>
+                            </div>
+
+                            <!-- Tên trường / môn học mặc định -->
+                            <div class="mb-3">
+                                <label for="default_subject" class="form-label fw-bold"><i class="fas fa-book"></i> Tên trường / môn học mặc định</label>
+                                <input type="text" id="default_subject" name="default_subject" class="form-control" value="{{ config.default_subject }}">
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> LƯU CẤU HÌNH
+                                </button>
+                                <a href="/dashboard" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+                                </a>
+                            </div>
+                        </form>
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, msg in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+                                        {{ msg }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

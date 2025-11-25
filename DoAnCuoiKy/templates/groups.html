@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if mode == 'create' %}Tạo Nhóm Mới
+{% elif mode == 'add_students' %}Thêm Sinh Viên
+{% else %}Quản Lý Nhóm{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if mode == 'create' %}
+<h3><i class="fas fa-users"></i> Tạo Nhóm Lớp Mới</h3>
+<form method="post">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="mb-3">
+        <label class="form-label"><i class="fas fa-tag"></i> Tên nhóm</label>
+        <input type="text" name="name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label"><i class="fas fa-align-left"></i> Mô tả</label>
+        <textarea name="description" class="form-control" rows="3"></textarea>
+    </div>
+    <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i> Tạo Nhóm</button>
+    <a href="/manage_groups" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay lại</a>
+</form>
+
+{% elif mode == 'add_students' %}
+<h3><i class="fas fa-user-plus"></i> Thêm Sinh Viên Vào Nhóm: {{ group_name }}</h3>
+<form method="post">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    {% if students %}
+    <p class="text-muted">Chọn sinh viên chưa trong nhóm này:</p>
+    <input type="text" class="form-control mb-3" id="studentSearch" placeholder="🔍 Tìm kiếm sinh viên theo tên hoặc username...">
+    <div style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 5px; padding: 10px;">
+        {% for student in students %}
+        <div class="form-check student-item" data-username="{{ student[1] }}" data-name="{{ student[2] }}">
+            <input class="form-check-input" type="checkbox" name="students" value="{{ student[0] }}" id="student_{{ student[0] }}">
+            <label class="form-check-label" for="student_{{ student[0] }}">
+                {{ student[1] }} - {{ student[2] }} ({{ student[3] }}, {{ student[4] }})
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-success mt-3"><i class="fas fa-user-plus"></i> Thêm Vào Nhóm</button>
+    {% else %}
+    <div class="alert alert-info">Không có sinh viên nào để thêm.</div>
+    {% endif %}
+    <a href="/manage_groups" class="btn btn-secondary mt-3"><i class="fas fa-arrow-left"></i> Quay lại</a>
+</form>
+
+{% else %}
+<h3><i class="fas fa-users-cog"></i> Quản Lý Nhóm Lớp</h3>
+<a href="/create_group" class="btn btn-success mb-3"><i class="fas fa-plus"></i> Tạo Nhóm Mới</a>
+
+{% if groups %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th><i class="fas fa-tag"></i> Tên Nhóm</th>
+                <th><i class="fas fa-align-left"></i> Mô tả</th>
+                <th><i class="fas fa-barcode"></i> Mã Nhóm</th>
+                <th><i class="fas fa-cogs"></i> Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in groups %}
+            <tr>
+                <td>{{ group[1] }}</td>
+                <td>{{ group[2] }}</td>
+                <td><code>{{ group[3] }}</code></td>
+                <td>
+                    <a href="/add_students_to_group/{{ group[0] }}" class="btn btn-warning btn-sm"><i class="fas fa-user-plus"></i> Thêm SV</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Chưa có nhóm nào.</div>
+{% endif %}
+<a href="/dashboard" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay lại Dashboard</a>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if mode == 'add_students' %}
+<script>
+    document.getElementById('studentSearch').addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        const items = document.querySelectorAll('.student-item');
+        items.forEach(item => {
+            const username = item.getAttribute('data-username').toLowerCase();
+            const name = item.getAttribute('data-name').toLowerCase();
+            if (username.includes(query) || name.includes(query)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

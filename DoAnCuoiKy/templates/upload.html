@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Đề Thi - Hệ Thống Quản Lý Đề Thi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card-custom {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .form-check-scroll {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-md-10">
+                <div class="card card-custom">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h3 class="mb-0"><i class="fas fa-upload"></i> Upload Đề Thi</h3>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, msg in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                        {{ msg }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <form method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                            <div class="mb-3">
+                                <label for="ten_de" class="form-label"><i class="fas fa-tag"></i> Tên đề thi / Môn học <span class="text-danger">*</span></label>
+                                <input type="text" id="ten_de" name="ten_de" class="form-control" placeholder="Nhập tên đề thi" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="file" class="form-label"><i class="fas fa-file-upload"></i> Chọn file đề thi (.pdf, .docx...)</label>
+                                <input type="file" id="file" name="file" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><i class="fas fa-calendar-alt"></i> Thời gian mở đề</label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <input type="date" name="release_date" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <input type="time" name="release_time" class="form-control" required>
+                                        <div class="form-text text-muted">Định dạng 24h (VD: 13:30 là 1h30 chiều)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><i class="fas fa-users"></i> Chọn nhóm lớp được phép xem (chọn từ danh sách):</label>
+                                <div class="form-check-scroll">
+                                    {% for group in groups %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="allowed_groups" value="{{ group[0] }}" id="group_{{ group[0] }}">
+                                        <label class="form-check-label" for="group_{{ group[0] }}">
+                                            {{ group[1] }}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted">Để trống nếu tất cả sinh viên được xem.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><i class="fas fa-shield-alt"></i> Phương thức xác thực sinh viên:</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_otp" value="otp">
+                                    <label class="form-check-label" for="auth_otp">
+                                        Gửi qua OTP Email (Thi Online / Bài tập về nhà)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_pin" value="pin">
+                                    <label class="form-check-label" for="auth_pin">
+                                        Gửi qua Mã Ca Thi (Thi Tập Trung tại phòng máy)
+                                    </label>
+                                </div>
+                                  <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_both" value="both" checked>
+                                    <label class="form-check-label" for="auth_both">
+                                        Linh hoạt (Cả hai)
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="expire_minutes" class="form-label"><i class="fas fa-clock"></i> Thời gian làm bài (phút)</label>
+                                <input type="number" id="expire_minutes" name="expire_minutes" value="60" min="1" max="180" class="form-control" required>
+                                <div class="form-text">Hệ thống sẽ tự động tính thời gian đóng đề = Thời gian mở + Thời gian làm bài.</div>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-upload"></i> UPLOAD + MÃ HÓA
+                                </button>
+                                <a href="/dashboard" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i> Quay lại
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

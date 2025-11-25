@@ -1,0 +1,28 @@
+body {
+	font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+	background: linear-gradient(120deg, #e0eafc 0%, #cfdef3 100%);
+}
+.card {
+	border-radius: 16px;
+	box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.card-header {
+	border-radius: 16px 16px 0 0;
+}
+.btn-primary {
+	background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+	border: none;
+}
+.btn-primary:hover {
+	background: linear-gradient(90deg, #0056b3 0%, #007bff 100%);
+}
+.alert-warning {
+	background: #fff3cd;
+	color: #856404;
+	border-radius: 8px;
+	border: 1px solid #ffeeba;
+}
+input.form-control:focus {
+	border-color: #007bff;
+	box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}

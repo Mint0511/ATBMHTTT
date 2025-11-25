@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin - Quản lý Users</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Quản lý Users</h2>
+        <div>
+            <a href="/dashboard" class="btn btn-secondary">Về Dashboard</a>
+            <a href="/logout" class="btn btn-danger">Đăng xuất</a>
+        </div>
+    </div>
+
+    <!-- Search -->
+    <form method="get" class="mb-3">
+        <div class="input-group">
+            <input type="text" name="search" class="form-control" placeholder="Tìm kiếm username, tên, email..." value="{{ search }}">
+            <button class="btn btn-outline-secondary" type="submit">Tìm</button>
+        </div>
+    </form>
+
+    <!-- Add User Button -->
+    <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addUserModal">+ Thêm User</button>
+
+    <!-- Users Table -->
+    <table class="table table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Email</th>
+                <th>Họ tên</th>
+                <th>Mã ID</th>
+                <th>Lớp</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user[0] }}</td>
+                <td>{{ user[1] }}</td>
+                <td>{{ user[2] }}</td>
+                <td>{{ user[3] }}</td>
+                <td>{{ user[4] or '-' }}</td>
+                <td>{{ user[5] or user[6] or '-' }}</td>
+                <td>{{ user[6] or '-' }}</td>
+                <td>
+                    {% if user[0] != current_user.id %}
+                    <form method="post" style="display:inline;">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="user_id" value="{{ user[0] }}">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?')">Xóa</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Add User Modal -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Thêm User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <div class="mb-3">
+                            <input class="form-control" name="username" placeholder="Username" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="password" class="form-control" name="password" placeholder="Password" required>
+                        </div>
+                        <div class="mb-3">
+                            <select name="role" id="role_select" class="form-select" required>
+                                <option value="student">Sinh viên</option>
+                                <option value="teacher">Giáo viên</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <input class="form-control" type="email" name="email" placeholder="Email" required>
+                        </div>
+                        <div class="mb-3">
+                            <input class="form-control" name="full_name" placeholder="Họ và tên">
+                        </div>
+                        <div class="mb-3" id="student_id_container">
+                            <input class="form-control" name="student_id" placeholder="Mã sinh viên">
+                        </div>
+                        <div class="mb-3" id="teacher_id_container" style="display:none;">
+                            <input class="form-control" name="teacher_id" placeholder="Mã giáo viên">
+                        </div>
+                        <div class="mb-3">
+                            <input class="form-control" name="class_name" placeholder="Lớp">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Thêm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const roleSelect = document.getElementById('role_select');
+        const studentContainer = document.getElementById('student_id_container');
+        const teacherContainer = document.getElementById('teacher_id_container');
+
+        function toggleFields() {
+            const role = roleSelect.value;
+            if (role === 'student') {
+                studentContainer.style.display = 'block';
+                teacherContainer.style.display = 'none';
+            } else if (role === 'teacher') {
+                studentContainer.style.display = 'none';
+                teacherContainer.style.display = 'block';
+            } else {
+                studentContainer.style.display = 'none';
+                teacherContainer.style.display = 'none';
+            }
+        }
+
+        roleSelect.addEventListener('change', toggleFields);
+        toggleFields(); // Run on load
+    });
+</script>
+</body>
+</html>
