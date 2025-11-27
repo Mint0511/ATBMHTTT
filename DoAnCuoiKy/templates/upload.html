@@ -74,9 +74,9 @@
                                 <input type="file" id="file" name="file" class="form-control" required>
                             </div>
                             <div class="mb-3">
-                                <label for="allowed_groups" class="form-label"><i class="fas fa-users"></i> Chọn nhóm lớp được phép xem:</label>
+                                <label for="allowed_groups" class="form-label"><i class="fas fa-users"></i> Chọn lớp được phép xem:</label>
                                 <select id="allowed_groups" name="allowed_groups" class="form-select">
-                                    <option value="">-- Chọn nhóm lớp --</option>
+                                    <option value="">-- Chọn lớp --</option>
                                     {% for group in groups %}
                                     <option value="{{ group[0] }}">{{ group[1] }}</option>
                                     {% endfor %}

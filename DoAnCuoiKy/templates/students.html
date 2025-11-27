@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-Quản Lý Nhóm
+{% if mode == 'manage' %}Quản Lý Sinh Viên{% else %}Duyệt Sinh Viên{% endif %}
 {% endblock %}
 
 {% block extra_style %}
@@ -22,7 +22,7 @@ Quản Lý Nhóm
 {% block content %}
 <h3>
     <i class="fas fa-users"></i> 
-    Quản Lý Nhóm
+    {% if mode == 'manage' %}Quản Lý Sinh Viên{% else %}Duyệt Sinh Viên{% endif %}
 </h3>
 
 {% if mode == 'approve' %}
@@ -38,7 +38,7 @@ Quản Lý Nhóm
                 <th><i class="fas fa-hashtag"></i> Mã SV</th>
                 <th><i class="fas fa-school"></i> Lớp</th>
                 <th><i class="fas fa-envelope"></i> Email</th>
-                <th><i class="fas fa-users"></i> Nhóm Yêu Cầu</th>
+                <th><i class="fas fa-users"></i> Lớp Yêu Cầu</th>
                 <th><i class="fas fa-comment"></i> Lời nhắn</th>
                 <th><i class="fas fa-cogs"></i> Hành động</th>
             </tr>
@@ -113,7 +113,7 @@ Quản Lý Nhóm
                                 <td>{{ student[5] }}</td>
                                 <td>
                                     {% if student[5] == 'left' %}
-                                    <span class="badge bg-warning text-dark mb-2">Đã rời nhóm</span><br>
+                                    <span class="badge bg-warning text-dark mb-2">Đã rời lớp</span><br>
                                     <form method="post" class="d-inline">
                                         <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                                         <input type="hidden" name="action" value="add_back">
@@ -129,7 +129,7 @@ Quản Lý Nhóm
                                         <input type="hidden" name="action" value="remove_from_group">
                                         <input type="hidden" name="user_id" value="{{ student[0] }}">
                                         <input type="hidden" name="group_id" value="{{ gid }}">
-                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xoá sinh viên {{ student[1] }} khỏi nhóm {{ data.name }}?')">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xoá sinh viên {{ student[1] }} khỏi lớp {{ data.name }}?')">
                                             <i class="fas fa-user-minus"></i> Xoá
                                         </button>
                                     </form>
@@ -140,7 +140,7 @@ Quản Lý Nhóm
                                         <input type="hidden" name="action" value="block">
                                         <input type="hidden" name="user_id" value="{{ student[0] }}">
                                         <input type="hidden" name="group_id" value="{{ gid }}">
-                                        <button type="submit" class="btn btn-dark btn-sm" onclick="return confirm('Chặn sinh viên này tham gia nhóm?')">
+                                        <button type="submit" class="btn btn-dark btn-sm" onclick="return confirm('Chặn sinh viên này tham gia lớp?')">
                                             <i class="fas fa-ban"></i> Chặn
                                         </button>
                                     </form>

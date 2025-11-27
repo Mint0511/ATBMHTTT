@@ -1075,7 +1075,7 @@ def student_groups():
     # GET: List all groups available vs joined
     # 1. My Groups (Approved)
     my_groups = c.execute("""
-        SELECT g.id, g.name, u.full_name as teacher_name, g.description
+        SELECT g.id, g.name, u.username as teacher_name, g.description
         FROM groups g
         JOIN group_members gm ON g.id = gm.group_id
         JOIN users u ON g.teacher_id = u.id
@@ -1084,7 +1084,7 @@ def student_groups():
     
     # 2. Pending Requests
     pending_groups = c.execute("""
-        SELECT g.id, g.name, u.full_name, gm.student_note
+        SELECT g.id, g.name, u.username, gm.student_note
         FROM groups g
         JOIN group_members gm ON g.id = gm.group_id
         JOIN users u ON g.teacher_id = u.id
@@ -1323,16 +1323,28 @@ def manage_students():
         return redirect('/manage_students')
 
     # GET: list students in teacher's groups (individual memberships)
-    # Include 'approved' and 'left' status
+    # Show all students regardless of status
     students = c.execute("""
         SELECT u.id, u.username, u.full_name, u.student_id, u.class_name, u.email, g.name, g.id, gm.status
         FROM users u
         JOIN group_members gm ON u.id = gm.student_id
         JOIN groups g ON gm.group_id = g.id
-        WHERE u.role='student' AND g.teacher_id=? AND gm.status IN ('approved', 'left')
+        WHERE u.role='student' AND g.teacher_id=?
         ORDER BY g.name, u.username
     """, (current_user.id,)).fetchall()
-    return render_template('students.html', mode='manage', students=students)
+    
+    # Group students by group_id
+    group_data = {}
+    for student in students:
+        gid = student[7]
+        gname = student[6]
+        if gid not in group_data:
+            group_data[gid] = {'name': gname, 'students': []}
+        # student format: (id, username, full_name, student_id, class_name, email, group_name, group_id, status)
+        # Convert to format expected by template: (id, username, full_name, student_id, class_name, status)
+        group_data[gid]['students'].append((student[0], student[1], student[2], student[3], student[4], student[8]))
+    
+    return render_template('students.html', mode='manage', group_data=group_data)
 
 # Đã bỏ /security_info để tập trung vào luồng chính.
 

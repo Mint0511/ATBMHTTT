@@ -21,8 +21,8 @@
                                 {{ group[1] }}
                             </a>
                         </h5>
-                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-chalkboard-teacher"></i> {{ group[2] }}</h6>
-                        <p class="card-text">{{ group[3] }}</p>
+                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-chalkboard-teacher"></i> Giáo viên: {{ group[2] }}</h6>
+                        <p class="card-text">{{ group[3] or '' }}</p>
                     </div>
                     <div class="card-footer bg-transparent border-success position-relative">
                         <form method="post" onsubmit="return confirm('Bạn có chắc chắn muốn rời khỏi nhóm này? Giáo viên sẽ nhận được thông báo.');" style="position: relative; z-index: 2;">
