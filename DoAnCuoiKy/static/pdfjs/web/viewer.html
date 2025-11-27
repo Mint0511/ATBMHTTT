@@ -772,5 +772,26 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
+    <script>
+      // Check if toolbar=false parameter is set
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('toolbar') === 'false') {
+        document.body.setAttribute('data-hide-toolbar', 'true');
+        // Also hide downloadButton and printButton
+        document.addEventListener('DOMContentLoaded', function() {
+          const downloadBtn = document.getElementById('downloadButton');
+          const printBtn = document.getElementById('printButton');
+          const secondaryDownload = document.getElementById('secondaryDownload');
+          const secondaryPrint = document.getElementById('secondaryPrint');
+          const secondaryOpenFile = document.getElementById('secondaryOpenFile');
+          
+          if (downloadBtn) downloadBtn.style.display = 'none';
+          if (printBtn) printBtn.style.display = 'none';
+          if (secondaryDownload) secondaryDownload.style.display = 'none';
+          if (secondaryPrint) secondaryPrint.style.display = 'none';
+          if (secondaryOpenFile) secondaryOpenFile.style.display = 'none';
+        });
+      }
+    </script>
   </body>
 </html>

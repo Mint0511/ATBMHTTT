@@ -25,7 +25,9 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Đặt True nếu dùng HTTPS
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # --- Database ---
-conn = sqlite3.connect('exam.db', check_same_thread=False)
+import os as os_module
+db_path = os_module.path.join(os_module.path.dirname(os_module.path.abspath(__file__)), 'exam.db')
+conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 # Drop legacy tables no longer used (cleanup for simplified model)
@@ -37,7 +39,7 @@ for _tbl in ['posts', 'comments', 'exam_keys']:
 
 # Create tables if not exists
 c.execute('''CREATE TABLE IF NOT EXISTS users
-             (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT, email TEXT UNIQUE, rsa_private BLOB, salt TEXT, full_name TEXT, student_id TEXT, class_name TEXT, status TEXT DEFAULT 'approved', approval_note TEXT, selected_teachers TEXT, teacher_id TEXT, failed_attempts INTEGER DEFAULT 0, lock_until TEXT)''')
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT, email TEXT UNIQUE, rsa_private BLOB, salt TEXT, full_name TEXT, student_id TEXT, class_name TEXT, status TEXT DEFAULT 'approved', approval_note TEXT, selected_teachers TEXT, teacher_id TEXT, failed_attempts INTEGER DEFAULT 0, lock_until TEXT, is_deleted INTEGER DEFAULT 0)''')
 
 try:
     c.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
@@ -59,6 +61,14 @@ except:
     pass
 try:
     c.execute("ALTER TABLE users ADD COLUMN lock_until TEXT")
+except:
+    pass
+try:
+    c.execute("ALTER TABLE users ADD COLUMN is_deleted INTEGER DEFAULT 0")
+except:
+    pass
+try:
+    c.execute("ALTER TABLE users ADD COLUMN is_locked INTEGER DEFAULT 0")
 except:
     pass
 
@@ -135,6 +145,20 @@ except:
 
 
 # Bảng exam_keys (per-student key) đã bỏ khỏi mô hình (giữ nguyên nếu còn dữ liệu cũ, không sử dụng)
+
+# Bảng submissions cho nộp bài
+c.execute('''CREATE TABLE IF NOT EXISTS submissions
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_id INTEGER, student_id INTEGER, filename TEXT, enc_path TEXT, submission_time TEXT, aes_key BLOB, encrypted_aes_key BLOB, file_hash TEXT)''')
+
+try:
+    c.execute("ALTER TABLE submissions ADD COLUMN encrypted_aes_key BLOB")
+except:
+    pass
+
+try:
+    c.execute("ALTER TABLE submissions ADD COLUMN file_hash TEXT")
+except:
+    pass
 
 c.execute('''CREATE TABLE IF NOT EXISTS config
              (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT UNIQUE, value TEXT)''')
@@ -297,6 +321,7 @@ def index(): return redirect('/login')
 def register():
     teachers = c.execute("SELECT id, username, full_name FROM users WHERE role='teacher'").fetchall()
     groups = c.execute("SELECT id, name, teacher_id, code FROM groups").fetchall()
+    errors = []
     if request.method=='POST':
         verify_csrf()
         u = request.form['username'].strip()
@@ -307,14 +332,25 @@ def register():
         student_id = request.form.get('student_id', '').strip()
         class_name = request.form.get('class_name', '').strip()
         selected_groups = request.form.getlist('groups')  # list of group ids
-        if len(p)<6: flash('Mật khẩu phải ≥6 ký tự'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
-        if r != 'student': flash('Chỉ được đăng ký sinh viên'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
-        if c.execute("SELECT 1 FROM users WHERE username=?",(u,)).fetchone(): flash('Username tồn tại'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
-        if c.execute("SELECT 1 FROM users WHERE email=?",(e,)).fetchone(): flash('Email tồn tại'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
+        
+        # Validation
+        if len(p)<6: 
+            errors.append('Mật khẩu phải ≥6 ký tự')
+        if r != 'student': 
+            errors.append('Chỉ được đăng ký sinh viên')
+        if c.execute("SELECT 1 FROM users WHERE username=? AND is_deleted=0",(u,)).fetchone(): 
+            errors.append('Username tồn tại')
+        if c.execute("SELECT 1 FROM users WHERE email=? AND is_deleted=0",(e,)).fetchone(): 
+            errors.append('Email tồn tại')
         # Validate student_id
         if not student_id.startswith('3122410') or len(student_id) != 10 or not student_id[7:].isdigit():
-            flash('Mã sinh viên phải có định dạng 3122410xxx (xxx là 3 chữ số)'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
-        if c.execute("SELECT 1 FROM users WHERE student_id=?",(student_id,)).fetchone(): flash('Mã sinh viên đã tồn tại, vui lòng nhập mã khác'); return render_template('auth.html', mode='register', teachers=teachers, groups=groups)
+            errors.append('Mã sinh viên phải có định dạng 3122410xxx (xxx là 3 chữ số)')
+        if c.execute("SELECT 1 FROM users WHERE student_id=? AND is_deleted=0",(student_id,)).fetchone(): 
+            errors.append('Mã sinh viên đã tồn tại, vui lòng nhập mã khác')
+        
+        if errors:
+            return render_template('auth.html', mode='register', teachers=teachers, groups=groups, errors=errors)
+        
         salt = os.urandom(16).hex()
         hashed = generate_password_hash(p + salt)
         # RSA private key
@@ -336,20 +372,27 @@ def register():
 
 @app.route('/login', methods=['GET','POST'])
 def login():
+    errors = []
     if request.method=='POST':
         verify_csrf()
         u = request.form['username']
         p = request.form['password']
-        row = c.execute("SELECT id,password,salt,role,email,status,failed_attempts,lock_until FROM users WHERE username=?",(u,)).fetchone()
+        row = c.execute("SELECT id,password,salt,role,email,status,failed_attempts,lock_until,is_deleted,is_locked FROM users WHERE username=? AND is_deleted=0",(u,)).fetchone()
         if row:
-            # Lockout check
+            # Check if account is locked by admin
+            is_locked = row[9] if len(row) > 9 else 0
+            if is_locked:
+                errors.append('Tài khoản đã bị khóa bởi quản trị viên')
+                return render_template('auth.html', mode='login', errors=errors)
+            
+            # Lockout check (temporary lock from failed attempts)
             lock_until = row[7]
             if lock_until:
                 try:
                     lu = datetime.datetime.fromisoformat(lock_until)
                     if datetime.datetime.now() < lu:
-                        flash('Tài khoản bị khóa tạm thời do nhiều lần đăng nhập sai')
-                        return render_template('auth.html', mode='login')
+                        errors.append('Tài khoản bị khóa tạm thời do nhiều lần đăng nhập sai')
+                        return render_template('auth.html', mode='login', errors=errors)
                 except:
                     pass
         if row and check_password_hash(row[1], p + row[2]) and row[5] == 'approved':
@@ -360,9 +403,9 @@ def login():
                 return redirect('/admin/users')
             return redirect('/dashboard')
         elif row and row[5] != 'approved':
-            flash('Tài khoản đang chờ duyệt hoặc bị từ chối')
+            errors.append('Tài khoản đang chờ duyệt hoặc bị từ chối')
         else:
-            flash('Sai tài khoản hoặc mật khẩu')
+            errors.append('Sai tài khoản hoặc mật khẩu')
             if row:
                 attempts = (row[6] or 0) + 1
                 if attempts >= 5:
@@ -371,7 +414,7 @@ def login():
                 else:
                     c.execute("UPDATE users SET failed_attempts=? WHERE id=?", (attempts, row[0]))
                 conn.commit()
-    return render_template('auth.html', mode='login')
+    return render_template('auth.html', mode='login', errors=errors)
 
 # ----- LOGOUT -----
 @app.route('/logout')
@@ -384,31 +427,61 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.role == 'admin':
+        # Admin redirect to user management
+        return redirect(url_for('admin_users'))
+    
     now = datetime.datetime.now()
     if current_user.role=='teacher':
-        exams = c.execute("SELECT id, filename, release_time, expire_time, ten_de FROM exams WHERE teacher_id=?",(current_user.id,)).fetchall()
-        # Format times
-        formatted_exams = []
+        exams = c.execute("SELECT id, filename, release_time, expire_time, ten_de, pin_code, allowed_groups FROM exams WHERE teacher_id=?",(current_user.id,)).fetchall()
+        # Group exams by allowed_groups
+        group_data = {}
         for e in exams:
-            eid, filename, release_str, expire_str, ten_de = e
-            # Lấy PIN code
-            pin_row = c.execute("SELECT pin_code FROM exams WHERE id=?", (eid,)).fetchone()
-            pin_code = pin_row[0] if pin_row else "N/A"
+            eid, filename, release_str, expire_str, ten_de, pin_code, allowed_groups_str = e
             
             release_time = datetime.datetime.strptime(release_str, '%Y-%m-%dT%H:%M')
             expire_time = datetime.datetime.strptime(expire_str, '%Y-%m-%dT%H:%M')
             release_display = release_time.strftime('%d/%m/%Y %H:%M')
             expire_display = expire_time.strftime('%d/%m/%Y %H:%M')
-            formatted_exams.append((eid, filename, release_display, expire_display, ten_de, pin_code))
-        return render_template('dashboard_teacher.html', exams=formatted_exams)
+            
+            exam_data = (eid, filename, release_display, expire_display, ten_de, pin_code or "N/A")
+            
+            # Process groups
+            if allowed_groups_str:
+                group_ids = allowed_groups_str.split(',')
+                for gid in group_ids:
+                    gid = gid.strip()
+                    if not gid:
+                        continue
+                    if gid not in group_data:
+                        # Get group name
+                        group_row = c.execute("SELECT name FROM groups WHERE id=?", (gid,)).fetchone()
+                        group_name = group_row[0] if group_row else f"Lớp {gid}"
+                        group_data[gid] = {'name': group_name, 'exams': []}
+                    group_data[gid]['exams'].append(exam_data)
+            else:
+                # No group assigned, put in "Chưa phân lớp"
+                if 'unassigned' not in group_data:
+                    group_data['unassigned'] = {'name': 'Chưa phân lớp', 'exams': []}
+                group_data['unassigned']['exams'].append(exam_data)
+        
+        return render_template('dashboard_teacher.html', group_data=group_data)
     else:
-        exams = c.execute("SELECT e.id, e.filename, e.release_time, e.expire_time, u.username, e.ten_de, e.allowed_students, e.auth_mode FROM exams e LEFT JOIN users u ON e.teacher_id=u.id").fetchall()
+        exams = c.execute("SELECT e.id, e.filename, e.release_time, e.expire_time, u.username, e.ten_de, e.allowed_groups, e.auth_mode FROM exams e LEFT JOIN users u ON e.teacher_id=u.id").fetchall()
         # Add status
         exams_with_status = []
+        # Get student's groups
+        student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
+        student_group_ids = [str(g[0]) for g in student_groups]
+        
         for e in exams:
-            eid, filename, release_str, expire_str, username, ten_de, allowed, auth_mode = e
-            if allowed and current_user.username not in allowed.split(','):
-                continue  # Skip if not allowed
+            eid, filename, release_str, expire_str, username, ten_de, allowed_groups, auth_mode = e
+            # Check if student is in allowed groups
+            if allowed_groups:
+                exam_group_ids = allowed_groups.split(',')
+                has_permission = any(gid in student_group_ids for gid in exam_group_ids)
+                if not has_permission:
+                    continue  # Skip if not in any allowed group
             release_time = datetime.datetime.strptime(release_str, '%Y-%m-%dT%H:%M')
             expire_time = datetime.datetime.strptime(expire_str, '%Y-%m-%dT%H:%M')
             release_display = release_time.strftime('%d/%m/%Y %H:%M')
@@ -448,15 +521,18 @@ def dashboard():
 def upload():
     if current_user.role!='teacher': return redirect('/dashboard')
     groups = c.execute("SELECT id, name FROM groups WHERE teacher_id=?", (current_user.id,)).fetchall()
+    errors = []
     if request.method=='POST':
         verify_csrf()
         if 'file' not in request.files or not request.files['file'].filename:
-            flash('Chưa chọn file!'); return render_template('upload.html', groups=groups)
+            errors.append('Chưa chọn file!')
+            return render_template('upload.html', groups=groups, errors=errors)
         file = request.files['file']
         ten_de = request.form['ten_de'].strip()
         release_date_str = request.form['release_date']
         release_time_str = request.form['release_time']
-        expire_minutes = int(request.form.get('expire_minutes',120))
+        expire_date_str = request.form.get('expire_date', '')
+        expire_time_str = request.form.get('expire_time', '')
         selected_groups = request.form.getlist('allowed_groups')  # List of group ids
         allowed_students = ''
         if selected_groups:
@@ -466,12 +542,29 @@ def upload():
             allowed_students = ','.join([s[0] for s in students])
         # Check if PDF
         if not file.filename.lower().endswith('.pdf') or file.mimetype != 'application/pdf':
-            flash('Chỉ chấp nhận file PDF!')
-            return render_template('upload.html', groups=groups)
+            errors.append('Chỉ chấp nhận file PDF!')
+            return render_template('upload.html', groups=groups, errors=errors)
         # Validate
-        try: release_time = datetime.datetime.strptime(f"{release_date_str} {release_time_str}", '%Y-%m-%d %H:%M')
-        except: flash('Sai định dạng thời gian'); return render_template('upload.html', groups=groups)
-        expire_time = release_time + datetime.timedelta(minutes=expire_minutes)
+        try: 
+            release_time = datetime.datetime.strptime(f"{release_date_str} {release_time_str}", '%Y-%m-%d %H:%M')
+            if expire_date_str and expire_time_str:
+                expire_time = datetime.datetime.strptime(f"{expire_date_str} {expire_time_str}", '%Y-%m-%d %H:%M')
+            else:
+                expire_time = release_time + datetime.timedelta(minutes=120)  # Default 2 hours
+        except Exception as e:
+            errors.append(f'Sai định dạng thời gian: {str(e)}')
+            return render_template('upload.html', groups=groups, errors=errors)
+        
+        # Check if release_time is in the past
+        now = datetime.datetime.now()
+        if release_time < now:
+            errors.append('Thời gian mở đề không được trong quá khứ!')
+            return render_template('upload.html', groups=groups, errors=errors)
+        
+        # Check if expire_time is before release_time
+        if expire_time <= release_time:
+            errors.append('Thời gian đóng đề phải sau thời gian mở đề!')
+            return render_template('upload.html', groups=groups, errors=errors)
         filename = secure_filename(file.filename)
         raw_data = file.read()
         
@@ -524,8 +617,9 @@ def upload():
                             (filename, enc_path, release_time.strftime('%Y-%m-%dT%H:%M'), expire_time.strftime('%Y-%m-%dT%H:%M'), current_user.id, ten_de, None, allowed_students, signature, file_hash, encrypted_aes_key, pin_code, auth_mode, allowed_groups_str)).lastrowid
 
         conn.commit()
-        flash(f'Upload thành công! Mã PIN: {pin_code} (Chế độ: {auth_mode})', 'success')
-    return render_template('upload.html', groups=groups)
+        session['success_message'] = f'Upload thành công! Mã PIN: {pin_code} (Chế độ: {auth_mode})'
+        return redirect('/dashboard')
+    return render_template('upload.html', groups=groups, errors=errors)
 
 # ----- SEND OTP -----
 @app.route('/send_otp/<int:eid>')
@@ -539,11 +633,18 @@ def send_otp(eid):
     if last_ts and now_ts - last_ts < 60:
         flash('Vui lòng đợi 60 giây trước khi yêu cầu OTP mới')
         return redirect(url_for('view_exam', eid=eid))
-    row = c.execute("SELECT release_time, expire_time, allowed_students FROM exams WHERE id=?",(eid,)).fetchone()
+    row = c.execute("SELECT release_time, expire_time, allowed_groups FROM exams WHERE id=?",(eid,)).fetchone()
     if not row: flash('Không tìm thấy đề thi'); return redirect(url_for('dashboard'))
-    release_time_str, expire_time_str, allowed = row
-    if allowed and current_user.username not in allowed.split(','):
-        flash('Bạn không có quyền truy cập đề thi này'); return redirect(url_for('dashboard'))
+    release_time_str, expire_time_str, allowed_groups = row
+    
+    # Check permission by groups
+    if allowed_groups:
+        student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
+        student_group_ids = [str(g[0]) for g in student_groups]
+        exam_group_ids = allowed_groups.split(',')
+        has_permission = any(gid in student_group_ids for gid in exam_group_ids)
+        if not has_permission:
+            flash('Bạn không có quyền truy cập đề thi này'); return redirect(url_for('dashboard'))
     now = datetime.datetime.now()
     release_time = datetime.datetime.strptime(release_time_str, '%Y-%m-%dT%H:%M')
     expire_time = datetime.datetime.strptime(expire_time_str, '%Y-%m-%dT%H:%M')
@@ -582,13 +683,19 @@ def send_otp(eid):
 def view_exam(eid):
     if request.method == 'POST':
         verify_csrf()
-        row = c.execute("SELECT release_time, expire_time, allowed_students, pin_code, auth_mode FROM exams WHERE id=?",(eid,)).fetchone()
+        row = c.execute("SELECT release_time, expire_time, allowed_groups, pin_code, auth_mode FROM exams WHERE id=?",(eid,)).fetchone()
         if not row: flash('Không tìm thấy đề thi'); return redirect(url_for('dashboard'))
-        release_time_str, expire_time_str, allowed, pin_code, auth_mode = row
+        release_time_str, expire_time_str, allowed_groups, pin_code, auth_mode = row
         if not auth_mode: auth_mode = 'both' # Default for old records
         
-        if allowed and current_user.username not in allowed.split(','):
-            flash('Bạn không có quyền truy cập đề thi này'); return redirect(url_for('dashboard'))
+        # Check permission by groups
+        if allowed_groups:
+            student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
+            student_group_ids = [str(g[0]) for g in student_groups]
+            exam_group_ids = allowed_groups.split(',')
+            has_permission = any(gid in student_group_ids for gid in exam_group_ids)
+            if not has_permission:
+                flash('Bạn không có quyền truy cập đề thi này'); return redirect(url_for('dashboard'))
         now = datetime.datetime.now()
         release_time = datetime.datetime.strptime(release_time_str, '%Y-%m-%dT%H:%M')
         expire_time = datetime.datetime.strptime(expire_time_str, '%Y-%m-%dT%H:%M')
@@ -632,14 +739,19 @@ def view_exam(eid):
 @app.route('/download_encrypted/<int:eid>')
 @login_required
 def download_encrypted(eid):
-    row = c.execute("SELECT enc_path, filename, allowed_students, release_time, expire_time FROM exams WHERE id=?", (eid,)).fetchone()
+    row = c.execute("SELECT enc_path, filename, allowed_groups, release_time, expire_time FROM exams WHERE id=?", (eid,)).fetchone()
     if not row: return Response("Lỗi: Không tìm thấy file", status=404)
-    enc_path, filename, allowed, release_time_str, expire_time_str = row
+    enc_path, filename, allowed_groups, release_time_str, expire_time_str = row
     
     # Check permissions (same as view_exam)
     if current_user.role == 'student':
-        if allowed and current_user.username not in allowed.split(','):
-            return Response("Lỗi: Không có quyền truy cập", status=403)
+        if allowed_groups:
+            student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
+            student_group_ids = [str(g[0]) for g in student_groups]
+            exam_group_ids = allowed_groups.split(',')
+            has_permission = any(gid in student_group_ids for gid in exam_group_ids)
+            if not has_permission:
+                return Response("Lỗi: Không có quyền truy cập", status=403)
         now = datetime.datetime.now()
         release_time = datetime.datetime.strptime(release_time_str, '%Y-%m-%dT%H:%M')
         expire_time = datetime.datetime.strptime(expire_time_str, '%Y-%m-%dT%H:%M')
@@ -659,11 +771,19 @@ def download_encrypted(eid):
 @app.route('/stream_exam/<int:eid>')
 @login_required
 def stream_exam(eid):
-    row = c.execute("SELECT enc_path, encrypted_aes_key, release_time, expire_time, allowed_students, teacher_id, signature, file_hash FROM exams WHERE id=?", (eid,)).fetchone()
+    row = c.execute("SELECT enc_path, encrypted_aes_key, release_time, expire_time, allowed_groups, teacher_id, signature, file_hash FROM exams WHERE id=?", (eid,)).fetchone()
     if not row: return Response("Lỗi: Không tìm thấy file", status=404)
-    enc_path, encrypted_aes_key, release_time_str, expire_time_str, allowed, teacher_id, signature, file_hash = row
-    if allowed and current_user.username not in allowed.split(','):
-        return Response("Lỗi: Không có quyền truy cập", status=403)
+    enc_path, encrypted_aes_key, release_time_str, expire_time_str, allowed_groups, teacher_id, signature, file_hash = row
+    
+    # Check permission by groups
+    if allowed_groups:
+        student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
+        student_group_ids = [str(g[0]) for g in student_groups]
+        exam_group_ids = allowed_groups.split(',')
+        has_permission = any(gid in student_group_ids for gid in exam_group_ids)
+        if not has_permission:
+            return Response("Lỗi: Không có quyền truy cập", status=403)
+    
     now = datetime.datetime.now()
     release_time = datetime.datetime.strptime(release_time_str, '%Y-%m-%dT%H:%M')
     expire_time = datetime.datetime.strptime(expire_time_str, '%Y-%m-%dT%H:%M')
@@ -966,56 +1086,44 @@ def profile():
     if current_user.role not in ['student', 'teacher']:
         return redirect('/dashboard')
     
-    if request.method == 'POST':
-        verify_csrf()
-        full_name = request.form.get('full_name', '').strip()
-        class_name = request.form.get('class_name', '').strip()
-        
-        if current_user.role == 'student':
-            # Update info only, no groups here anymore
-            c.execute("UPDATE users SET full_name=?, class_name=? WHERE id=?", (full_name, class_name, current_user.id))
-        else:  # teacher
-            c.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, current_user.id))
-        conn.commit()
-        flash('Cập nhật thông tin thành công!')
-        return redirect('/profile')
-        
+    # Chỉ cho phép xem thông tin, không cho phép sửa
     # GET
     if current_user.role == 'student':
         row = c.execute("SELECT username, email, full_name, student_id, class_name FROM users WHERE id=?", (current_user.id,)).fetchone()
     else:  # teacher
         row = c.execute("SELECT username, email, full_name, teacher_id, NULL FROM users WHERE id=?", (current_user.id,)).fetchone()
         
-    return render_template('profile.html', user=row, is_teacher=(current_user.role == 'teacher'))
+    return render_template('profile.html', user=row, is_teacher=(current_user.role == 'teacher'), read_only=True)
 
 # ----- CHANGE PASSWORD -----
 @app.route('/change_password', methods=['GET','POST'])
 @login_required
 def change_password():
+    if current_user.role == 'admin':
+        return redirect('/dashboard')  # Admin không thể đổi mật khẩu qua route này
+    errors = []
     if request.method == 'POST':
         verify_csrf()
         old_password = request.form['old_password']
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
         if new_password != confirm_password:
-            flash('Mật khẩu mới không khớp')
-            return redirect('/change_password')
+            errors.append('Mật khẩu mới không khớp')
         if len(new_password) < 6:
-            flash('Mật khẩu mới phải ≥6 ký tự')
-            return redirect('/change_password')
+            errors.append('Mật khẩu mới phải ≥6 ký tự')
         # Kiểm tra mật khẩu cũ
         row = c.execute("SELECT password, salt FROM users WHERE id=?", (current_user.id,)).fetchone()
         if not row or not check_password_hash(row[0], old_password + row[1]):
-            flash('Mật khẩu cũ sai')
-            return redirect('/change_password')
-        # Cập nhật mật khẩu mới
-        new_salt = os.urandom(16).hex()
-        new_hashed = generate_password_hash(new_password + new_salt)
-        c.execute("UPDATE users SET password=?, salt=? WHERE id=?", (new_hashed, new_salt, current_user.id))
-        conn.commit()
-        flash('Đổi mật khẩu thành công!')
-        return redirect('/profile')
-    return render_template('change_password.html')
+            errors.append('Mật khẩu cũ sai')
+        
+        if not errors:
+            # Cập nhật mật khẩu mới
+            new_salt = os.urandom(16).hex()
+            new_hashed = generate_password_hash(new_password + new_salt)
+            c.execute("UPDATE users SET password=?, salt=? WHERE id=?", (new_hashed, new_salt, current_user.id))
+            conn.commit()
+            return render_template('change_password.html', success_msg='Đổi mật khẩu thành công!', errors=errors)
+    return render_template('change_password.html', errors=errors)
 
 # ----- ADMIN CONFIG -----
 @app.route('/admin/config', methods=['GET','POST'])
@@ -1153,6 +1261,8 @@ def manage_students():
 def admin_users():
     if current_user.role != 'admin':
         return redirect('/dashboard')
+    errors = []
+    success_msg = None
     if request.method == 'POST':
         verify_csrf()
         action = request.form.get('action')
@@ -1165,57 +1275,143 @@ def admin_users():
             student_id = request.form.get('student_id', '').strip()
             teacher_id = request.form.get('teacher_id', '').strip()
             class_name = request.form.get('class_name', '').strip()
-            if len(p) < 6: flash('Mật khẩu phải ≥6 ký tự'); return redirect('/admin/users')
-            if r not in ['teacher', 'student', 'admin']: flash('Role sai'); return redirect('/admin/users')
-            if c.execute("SELECT 1 FROM users WHERE username=?", (u,)).fetchone(): flash('Username tồn tại'); return redirect('/admin/users')
-            if c.execute("SELECT 1 FROM users WHERE email=?", (e,)).fetchone(): flash('Email tồn tại'); return redirect('/admin/users')
+            
+            if len(p) < 6: 
+                errors.append('Mật khẩu phải ≥6 ký tự')
+            if r not in ['teacher', 'student', 'admin']: 
+                errors.append('Role sai')
+            if c.execute("SELECT 1 FROM users WHERE username=? AND is_deleted=0", (u,)).fetchone(): 
+                errors.append('Username tồn tại')
+            if c.execute("SELECT 1 FROM users WHERE email=? AND is_deleted=0", (e,)).fetchone(): 
+                errors.append('Email tồn tại')
             
             # Validation logic for roles
             if r == 'student':
                 if not student_id:
-                    flash('Vui lòng nhập Mã sinh viên cho tài khoản Sinh viên')
-                    return redirect('/admin/users')
+                    errors.append('Vui lòng nhập Mã sinh viên cho tài khoản Sinh viên')
                 if teacher_id:
-                    flash('Tài khoản Sinh viên không được nhập Mã giáo viên')
-                    return redirect('/admin/users')
+                    errors.append('Tài khoản Sinh viên không được nhập Mã giáo viên')
             elif r == 'teacher':
                 if not teacher_id:
-                    flash('Vui lòng nhập Mã giáo viên cho tài khoản Giáo viên')
-                    return redirect('/admin/users')
+                    errors.append('Vui lòng nhập Mã giáo viên cho tài khoản Giáo viên')
                 if student_id:
-                    flash('Tài khoản Giáo viên không được nhập Mã sinh viên')
-                    return redirect('/admin/users')
+                    errors.append('Tài khoản Giáo viên không được nhập Mã sinh viên')
             
-            salt = os.urandom(16).hex()
-            hashed = generate_password_hash(p + salt)
-            private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-            pem = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.BestAvailableEncryption(b'passphrase_default')
-            )
-            c.execute("INSERT INTO users(username,password,role,email,rsa_private,salt,full_name,student_id,teacher_id,class_name) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                      (u, hashed, r, e, pem, salt, full_name, student_id, teacher_id, class_name))
-            conn.commit()
-            flash('Thêm user thành công!')
+            if not errors:
+                salt = os.urandom(16).hex()
+                hashed = generate_password_hash(p + salt)
+                private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+                pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.BestAvailableEncryption(b'passphrase_default')
+                )
+                c.execute("INSERT INTO users(username,password,role,email,rsa_private,salt,full_name,student_id,teacher_id,class_name) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                          (u, hashed, r, e, pem, salt, full_name, student_id, teacher_id, class_name))
+                conn.commit()
+                success_msg = 'Thêm user thành công!'
         elif action == 'delete':
             uid = request.form['user_id']
-            if int(uid) != current_user.id:  # Không xóa chính mình
-                c.execute("DELETE FROM users WHERE id=?", (uid,))
+            if int(uid) != current_user.id:  # Không xóa chính mình (soft delete)
+                c.execute("UPDATE users SET is_deleted=1 WHERE id=?", (uid,))
                 conn.commit()
-                flash('Xóa user thành công!')
+                success_msg = 'Đã ẩn user thành công!'
             else:
-                flash('Không thể xóa chính mình!')
-        return redirect('/admin/users')
+                errors.append('Không thể ẩn chính mình!')
+        
+        # GET: list users with search
+        search = request.args.get('search', '').strip()
+        query = "SELECT id, username, role, email, full_name, student_id, teacher_id, class_name, is_locked FROM users WHERE is_deleted=0"
+        params = []
+        if search:
+            query += " AND (username LIKE ? OR full_name LIKE ? OR email LIKE ?)"
+            params = [f'%{search}%'] * 3
+        users = c.execute(query, params).fetchall()
+        return render_template('admin_users.html', users=users, search=search, errors=errors, success_msg=success_msg)
+    
     # GET: list users with search
     search = request.args.get('search', '').strip()
-    query = "SELECT id, username, role, email, full_name, student_id, teacher_id, class_name FROM users"
+    query = "SELECT id, username, role, email, full_name, student_id, teacher_id, class_name, is_locked FROM users WHERE is_deleted=0"
     params = []
     if search:
-        query += " WHERE username LIKE ? OR full_name LIKE ? OR email LIKE ?"
+        query += " AND (username LIKE ? OR full_name LIKE ? OR email LIKE ?)"
         params = [f'%{search}%'] * 3
     users = c.execute(query, params).fetchall()
-    return render_template('admin_users.html', users=users, search=search)
+    return render_template('admin_users.html', users=users, search=search, errors=errors)
+
+# ----- ADMIN LOCK/UNLOCK USER -----
+@app.route('/admin/lock_user/<int:uid>', methods=['POST'])
+@login_required
+def lock_user(uid):
+    if current_user.role != 'admin':
+        return redirect('/dashboard')
+    verify_csrf()
+    if uid == current_user.id:
+        flash('Không thể khóa chính mình!', 'danger')
+    else:
+        c.execute("UPDATE users SET is_locked=1 WHERE id=?", (uid,))
+        conn.commit()
+        flash('Đã khóa user thành công!', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/unlock_user/<int:uid>', methods=['POST'])
+@login_required
+def unlock_user(uid):
+    if current_user.role != 'admin':
+        return redirect('/dashboard')
+    verify_csrf()
+    c.execute("UPDATE users SET is_locked=0 WHERE id=?", (uid,))
+    conn.commit()
+    flash('Đã mở khóa user thành công!', 'success')
+    return redirect(url_for('admin_users'))
+
+# ----- ADMIN EDIT USER -----
+@app.route('/admin/edit_user/<int:uid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_user(uid):
+    if current_user.role != 'admin':
+        return redirect('/dashboard')
+    
+    errors = []
+    user = c.execute("SELECT id, username, role, email, full_name, student_id, teacher_id, class_name FROM users WHERE id=? AND is_deleted=0", (uid,)).fetchone()
+    if not user:
+        flash('User không tồn tại!', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    if request.method == 'POST':
+        verify_csrf()
+        email = request.form['email'].strip().lower()
+        full_name = request.form.get('full_name', '').strip()
+        student_id = request.form.get('student_id', '').strip()
+        teacher_id = request.form.get('teacher_id', '').strip()
+        class_name = request.form.get('class_name', '').strip()
+        role = user[2]  # Get current role
+        
+        # Check email uniqueness
+        existing = c.execute("SELECT id FROM users WHERE email=? AND is_deleted=0 AND id!=?", (email, uid)).fetchone()
+        if existing:
+            errors.append('Email đã tồn tại')
+        
+        # Validation based on role
+        if role == 'student':
+            if not student_id:
+                errors.append('Vui lòng nhập Mã sinh viên')
+            if teacher_id:
+                errors.append('Tài khoản Sinh viên không được có Mã giáo viên')
+        elif role == 'teacher':
+            if not teacher_id:
+                errors.append('Vui lòng nhập Mã giáo viên')
+            if student_id:
+                errors.append('Tài khoản Giáo viên không được có Mã sinh viên')
+        
+        if not errors:
+            c.execute("UPDATE users SET email=?, full_name=?, student_id=?, teacher_id=?, class_name=? WHERE id=?",
+                     (email, full_name, student_id, teacher_id, class_name, uid))
+            conn.commit()
+            flash('Cập nhật thông tin thành công!', 'success')
+            return redirect(url_for('admin_users'))
+    
+    return render_template('edit_user.html', user=user, errors=errors)
 
 @app.route('/preview_encrypted/<int:eid>')
 @login_required
@@ -1254,7 +1450,8 @@ def preview_encrypted(eid):
             output.append("...")
             output.append(f"(... {os.path.getsize(enc_path) - 1024} bytes remaining ...)")
             
-        return f"<pre>{'\n'.join(output)}</pre>"
+        joined = '\n'.join(output)
+        return f"<pre>{joined}</pre>"
     except Exception as e:
         return f"Error reading file: {str(e)}"
 
@@ -1578,5 +1775,150 @@ def student_teacher_detail(tid):
             
     return render_template('student_teacher_detail.html', teacher=teacher, exams=visible_exams)
 
+# ----- SUBMIT EXAM (STUDENT) -----
+@app.route('/submit_exam/<int:eid>', methods=['GET','POST'])
+@login_required
+def submit_exam(eid):
+    if current_user.role != 'student':
+        return redirect('/dashboard')
+    
+    # Check exam exists and is open
+    row = c.execute("SELECT release_time, expire_time, ten_de FROM exams WHERE id=?", (eid,)).fetchone()
+    if not row:
+        return render_template('submit_exam.html', errors=['Không tìm thấy đề thi'], eid=eid)
+    
+    release_str, expire_str, exam_name = row
+    release_time = datetime.datetime.strptime(release_str, '%Y-%m-%dT%H:%M')
+    expire_time = datetime.datetime.strptime(expire_str, '%Y-%m-%dT%H:%M')
+    now = datetime.datetime.now()
+    
+    errors = []
+    if now < release_time:
+        errors.append('Đề thi chưa mở')
+    if now > expire_time:
+        errors.append('Đề thi đã hết hạn, không thể nộp bài')
+    
+    # Check if already submitted
+    existing = c.execute("SELECT id FROM submissions WHERE exam_id=? AND student_id=?", (eid, current_user.id)).fetchone()
+    if existing:
+        errors.append('Bạn đã nộp bài rồi, không được nộp lại')
+    
+    if request.method == 'POST':
+        verify_csrf()
+        if 'file' not in request.files or not request.files['file'].filename:
+            errors.append('Chưa chọn file!')
+        else:
+            file = request.files['file']
+            # Check file type (PDF or DOCX)
+            if not (file.filename.lower().endswith('.pdf') or file.filename.lower().endswith('.docx')):
+                errors.append('Chỉ chấp nhận file PDF hoặc DOCX!')
+            else:
+                if not errors:
+                    # Encrypt and save submission
+                    raw_data = file.read()
+                    filename = secure_filename(file.filename)
+                    
+                    # Hash file
+                    file_hash = hash_file(raw_data)
+                    
+                    # AES-256-GCM encryption
+                    aes_key = os.urandom(32)
+                    iv = os.urandom(12)
+                    encryptor = Cipher(algorithms.AES(aes_key), modes.GCM(iv)).encryptor()
+                    ct = encryptor.update(raw_data) + encryptor.finalize()
+                    tag = encryptor.tag
+                    
+                    # Save encrypted file
+                    enc_path = os_module.path.join(app.config['UPLOAD_FOLDER'], f"sub_{eid}_{current_user.id}_{filename}")
+                    with open(enc_path, 'wb') as f:
+                        f.write(base64.b64encode(iv + tag + ct))
+                    
+                    # RSA encrypt AES key
+                    row = c.execute("SELECT rsa_private FROM users WHERE id=?", (current_user.id,)).fetchone()
+                    student_private_key = row[0] if row and row[0] else None
+                    if not student_private_key:
+                        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+                        pem = private_key.private_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PrivateFormat.PKCS8,
+                            encryption_algorithm=serialization.BestAvailableEncryption(b'passphrase_default')
+                        )
+                        c.execute("UPDATE users SET rsa_private=? WHERE id=?", (pem, current_user.id))
+                        student_private_key = pem
+                    
+                    encrypted_aes_key = rsa_encrypt_key(aes_key, student_private_key)
+                    
+                    # Save submission to DB
+                    submission_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    c.execute("INSERT INTO submissions(exam_id, student_id, filename, enc_path, submission_time, encrypted_aes_key, file_hash) VALUES (?,?,?,?,?,?,?)",
+                              (eid, current_user.id, filename, enc_path, submission_time, encrypted_aes_key, file_hash))
+                    conn.commit()
+                    
+                    return render_template('submit_exam.html', success_msg='Nộp bài thành công!', eid=eid, exam_name=exam_name, time_remaining=int((expire_time - now).total_seconds() / 60))
+    
+    time_remaining = int((expire_time - now).total_seconds() / 60) if now < expire_time else 0
+    return render_template('submit_exam.html', errors=errors, eid=eid, exam_name=exam_name, time_remaining=time_remaining)
+
+# ----- VIEW SUBMISSIONS (TEACHER) -----
+@app.route('/view_submissions/<int:eid>')
+@login_required
+def view_submissions(eid):
+    if current_user.role != 'teacher':
+        return redirect('/dashboard')
+    
+    # Check ownership
+    row = c.execute("SELECT teacher_id, ten_de FROM exams WHERE id=?", (eid,)).fetchone()
+    if not row or row[0] != current_user.id:
+        return "Không có quyền"
+    
+    exam_name = row[1]
+    submissions = c.execute("""
+        SELECT s.id, u.username, u.full_name, u.student_id, s.submission_time, s.filename
+        FROM submissions s
+        JOIN users u ON s.student_id = u.id
+        WHERE s.exam_id = ?
+        ORDER BY s.submission_time DESC
+    """, (eid,)).fetchall()
+    
+    return render_template('view_submissions.html', submissions=submissions, exam_name=exam_name, eid=eid)
+
+# ----- DOWNLOAD SUBMISSION -----
+@app.route('/download_submission/<int:sid>')
+@login_required
+def download_submission(sid):
+    row = c.execute("SELECT enc_path, filename, student_id, exam_id FROM submissions WHERE id=?", (sid,)).fetchone()
+    if not row:
+        return "File không tìm thấy"
+    
+    enc_path, filename, student_id, exam_id = row
+    
+    # Check permissions (student can download own, teacher can download from their exams)
+    if current_user.role == 'student' and current_user.id != student_id:
+        return "Không có quyền"
+    elif current_user.role == 'teacher':
+        exam_row = c.execute("SELECT teacher_id FROM exams WHERE id=?", (exam_id,)).fetchone()
+        if not exam_row or exam_row[0] != current_user.id:
+            return "Không có quyền"
+    
+    # Decrypt and send
+    try:
+        with open(enc_path, 'rb') as f:
+            data = base64.b64decode(f.read())
+        
+        iv, tag, ct = data[:12], data[12:28], data[28:]
+        
+        # Get student's private key
+        student_row = c.execute("SELECT rsa_private FROM users WHERE id=?", (student_id,)).fetchone()
+        sub_row = c.execute("SELECT encrypted_aes_key FROM submissions WHERE id=?", (sid,)).fetchone()
+        
+        if student_row and sub_row:
+            decrypted_aes_key = rsa_decrypt_key(sub_row[0], student_row[0])
+            decryptor = Cipher(algorithms.AES(decrypted_aes_key), modes.GCM(iv, tag)).decryptor()
+            decrypted = decryptor.update(ct) + decryptor.finalize()
+            
+            return send_file(io.BytesIO(decrypted), as_attachment=True, download_name=filename)
+    except Exception as e:
+        return f"Lỗi giải mã: {str(e)}"
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5000)

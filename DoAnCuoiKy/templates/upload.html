@@ -30,26 +30,20 @@
                         <h3 class="mb-0"><i class="fas fa-upload"></i> Upload Đề Thi</h3>
                     </div>
                     <div class="card-body">
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, msg in messages %}
-                                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                        {{ msg }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
+                        {% if errors %}
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {% for error in errors %}
+                                    <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
                                 {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endif %}
 
                         <form method="post" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                             <div class="mb-3">
                                 <label for="ten_de" class="form-label"><i class="fas fa-tag"></i> Tên đề thi / Môn học <span class="text-danger">*</span></label>
                                 <input type="text" id="ten_de" name="ten_de" class="form-control" placeholder="Nhập tên đề thi" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="file" class="form-label"><i class="fas fa-file-upload"></i> Chọn file đề thi (.pdf, .docx...)</label>
-                                <input type="file" id="file" name="file" class="form-control" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label"><i class="fas fa-calendar-alt"></i> Thời gian mở đề</label>
@@ -59,49 +53,44 @@
                                     </div>
                                     <div class="col-md-6">
                                         <input type="time" name="release_time" class="form-control" required>
-                                        <div class="form-text text-muted">Định dạng 24h (VD: 13:30 là 1h30 chiều)</div>
+                                        <div class="form-text text-muted">Định dạng 24h</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-users"></i> Chọn nhóm lớp được phép xem (chọn từ danh sách):</label>
-                                <div class="form-check-scroll">
-                                    {% for group in groups %}
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="allowed_groups" value="{{ group[0] }}" id="group_{{ group[0] }}">
-                                        <label class="form-check-label" for="group_{{ group[0] }}">
-                                            {{ group[1] }}
-                                        </label>
+                                <label class="form-label"><i class="fas fa-calendar-times"></i> Thời gian đóng đề</label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <input type="date" name="expire_date" class="form-control" required>
                                     </div>
-                                    {% endfor %}
+                                    <div class="col-md-6">
+                                        <input type="time" name="expire_time" class="form-control" required>
+                                        <div class="form-text text-muted">Định dạng 24h</div>
+                                    </div>
                                 </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="file" class="form-label"><i class="fas fa-file-upload"></i> Chọn file đề thi (.pdf, .docx...)</label>
+                                <input type="file" id="file" name="file" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="allowed_groups" class="form-label"><i class="fas fa-users"></i> Chọn nhóm lớp được phép xem:</label>
+                                <select id="allowed_groups" name="allowed_groups" class="form-select">
+                                    <option value="">-- Chọn nhóm lớp --</option>
+                                    {% for group in groups %}
+                                    <option value="{{ group[0] }}">{{ group[1] }}</option>
+                                    {% endfor %}
+                                </select>
                                 <small class="text-muted">Để trống nếu tất cả sinh viên được xem.</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label"><i class="fas fa-shield-alt"></i> Phương thức xác thực sinh viên:</label>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_otp" value="otp">
-                                    <label class="form-check-label" for="auth_otp">
-                                        Gửi qua OTP Email (Thi Online / Bài tập về nhà)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_pin" value="pin">
+                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_pin" value="pin" checked>
                                     <label class="form-check-label" for="auth_pin">
                                         Gửi qua Mã Ca Thi (Thi Tập Trung tại phòng máy)
                                     </label>
                                 </div>
-                                  <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="auth_mode" id="auth_both" value="both" checked>
-                                    <label class="form-check-label" for="auth_both">
-                                        Linh hoạt (Cả hai)
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="expire_minutes" class="form-label"><i class="fas fa-clock"></i> Thời gian làm bài (phút)</label>
-                                <input type="number" id="expire_minutes" name="expire_minutes" value="60" min="1" max="180" class="form-control" required>
-                                <div class="form-text">Hệ thống sẽ tự động tính thời gian đóng đề = Thời gian mở + Thời gian làm bài.</div>
                             </div>
                             <div class="d-flex justify-content-between">
                                 <button type="submit" class="btn btn-success">

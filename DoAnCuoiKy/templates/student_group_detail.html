@@ -43,7 +43,7 @@
                 <td><span class="status-{{ 'open' if exam[5] == 'Đang mở' else 'closed' if exam[5] == 'Chưa mở' else 'expired' }}">{{ exam[5] }}</span></td>
                 <td>
                     {% if exam[5] == 'Đang mở' %}
-                    <a href="{{ url_for('send_otp', eid=exam[0]) }}" class="btn btn-primary btn-sm">
+                    <a href="{{ url_for('view_exam', eid=exam[0]) }}" class="btn btn-primary btn-sm">
                         <i class="fas fa-paper-plane"></i> Vào thi
                     </a>
                     {% else %}

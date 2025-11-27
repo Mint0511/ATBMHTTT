@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Nộp Bài | Hệ thống Đề thi{% endblock %}
+{% block header %}
+<div class="card-header bg-primary text-white text-center">
+    <h2 class="mb-0"><i class="fas fa-file-upload"></i> Nộp Bài</h2>
+</div>
+{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-body">
+                    {% if success_msg %}
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="fas fa-check-circle"></i> {{ success_msg }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        <a href="/dashboard" class="btn btn-primary">Quay lại Dashboard</a>
+                    {% else %}
+                        {% if errors %}
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {% for error in errors %}
+                                    <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+                                {% endfor %}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endif %}
+
+                        {% if time_remaining > 0 %}
+                            <div class="alert alert-info">
+                                <strong>Thời gian còn lại:</strong> <span id="timer">{{ time_remaining }}</span> phút
+                            </div>
+                            
+                            <form method="post" enctype="multipart/form-data">
+                                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                <div class="mb-3">
+                                    <label for="file" class="form-label">Chọn file bài làm (PDF hoặc DOCX)</label>
+                                    <input type="file" class="form-control" name="file" id="file" accept=".pdf,.docx" required>
+                                    <small class="form-text text-muted">Hỗ trợ: PDF, DOCX</small>
+                                </div>
+                                <button type="submit" class="btn btn-success">Nộp Bài</button>
+                                <a href="/dashboard" class="btn btn-secondary">Hủy</a>
+                            </form>
+                        {% else %}
+                            <div class="alert alert-danger">
+                                <i class="fas fa-times-circle"></i> Đề thi đã hết hạn, không thể nộp bài
+                            </div>
+                            <a href="/dashboard" class="btn btn-primary">Quay lại</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Timer countdown
+let timeRemaining = {{ time_remaining }};
+setInterval(function() {
+    if (timeRemaining > 0) {
+        timeRemaining--;
+        document.getElementById('timer').textContent = timeRemaining;
+    }
+}, 60000); // Update every minute
+</script>
+{% endblock %}

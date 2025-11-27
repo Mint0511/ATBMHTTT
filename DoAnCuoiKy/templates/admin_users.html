@@ -6,10 +6,25 @@
 </head>
 <body class="bg-light">
 <div class="container mt-4">
+    {% if errors %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {% for error in errors %}
+                <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+            {% endfor %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endif %}
+    
+    {% if success_msg %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle"></i> {{ success_msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endif %}
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Quản lý Users</h2>
         <div>
-            <a href="/dashboard" class="btn btn-secondary">Về Dashboard</a>
             <a href="/logout" class="btn btn-danger">Đăng xuất</a>
         </div>
     </div>
@@ -36,6 +51,7 @@
                 <th>Họ tên</th>
                 <th>Mã ID</th>
                 <th>Lớp</th>
+                <th>Trạng thái</th>
                 <th>Hành động</th>
             </tr>
         </thead>
@@ -48,14 +64,48 @@
                 <td>{{ user[3] }}</td>
                 <td>{{ user[4] or '-' }}</td>
                 <td>{{ user[5] or user[6] or '-' }}</td>
-                <td>{{ user[6] or '-' }}</td>
+                <td>{{ user[7] or '-' }}</td>
+                <td>
+                    {% if user[8] == 1 %}
+                    <span class="badge bg-danger">Đã khóa</span>
+                    {% else %}
+                    <span class="badge bg-success">Hoạt động</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if user[0] != current_user.id %}
+                    <!-- Edit Button -->
+                    {% if user[2] in ['student', 'teacher'] %}
+                    <a href="{{ url_for('admin_edit_user', uid=user[0]) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-edit"></i> Sửa
+                    </a>
+                    {% endif %}
+                    
+                    <!-- Lock/Unlock Button -->
+                    {% if user[8] == 1 %}
+                    <form method="post" action="{{ url_for('unlock_user', uid=user[0]) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-unlock"></i> Mở khóa
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('lock_user', uid=user[0]) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Khóa user này?')">
+                            <i class="fas fa-lock"></i> Khóa
+                        </button>
+                    </form>
+                    {% endif %}
+                    
+                    <!-- Delete Button -->
                     <form method="post" style="display:inline;">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="user_id" value="{{ user[0] }}">
                         <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?')">Xóa</button>
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?')">
+                            <i class="fas fa-trash"></i> Xóa
+                        </button>
                     </form>
                     {% endif %}
                 </td>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-{% if mode == 'approve' %}Duyệt Yêu Cầu{% else %}Quản Lý Sinh Viên{% endif %}
+Quản Lý Nhóm
 {% endblock %}
 
 {% block extra_style %}
@@ -21,8 +21,8 @@
 
 {% block content %}
 <h3>
-    <i class="fas fa-{% if mode == 'approve' %}user-check{% else %}graduation-cap{% endif %}"></i> 
-    {% if mode == 'approve' %}Duyệt Yêu Cầu Tham Gia Nhóm{% else %}Quản Lý Sinh Viên Trong Nhóm{% endif %}
+    <i class="fas fa-users"></i> 
+    Quản Lý Nhóm
 </h3>
 
 {% if mode == 'approve' %}
@@ -79,70 +79,87 @@
 {% endif %}
 
 {% else %}
-{% if students %}
-<div class="table-responsive">
-    <table class="table table-hover table-bordered">
-        <thead class="table-dark">
-            <tr>
-                <th><i class="fas fa-users"></i> Nhóm</th>
-                <th><i class="fas fa-user"></i> Username</th>
-                <th><i class="fas fa-id-card"></i> Họ Tên</th>
-                <th><i class="fas fa-hashtag"></i> Mã SV</th>
-                <th><i class="fas fa-school"></i> Lớp</th>
-                <th><i class="fas fa-envelope"></i> Email</th>
-                <th><i class="fas fa-cogs"></i> Hành động</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for student in students %}
-            <tr class="{{ 'table-warning' if student[8] == 'left' else '' }}">
-                <td class="fw-bold text-primary">{{ student[6] }}</td>
-                <td>{{ student[1] }}</td>
-                <td>{{ student[2] }}</td>
-                <td><code>{{ student[3] }}</code></td>
-                <td>{{ student[4] }}</td>
-                <td>{{ student[5] }}</td>
-                <td>
-                    {% if student[8] == 'left' %}
-                    <span class="badge bg-warning text-dark mb-2">Đã rời nhóm</span><br>
-                    <form method="post" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                        <input type="hidden" name="action" value="add_back">
-                        <input type="hidden" name="user_id" value="{{ student[0] }}">
-                        <input type="hidden" name="group_id" value="{{ student[7] }}">
-                        <button type="submit" class="btn btn-success btn-sm">
-                            <i class="fas fa-user-plus"></i> Thêm lại
-                        </button>
-                    </form>
-                    {% else %}
-                    <form method="post" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                        <input type="hidden" name="action" value="remove_from_group">
-                        <input type="hidden" name="user_id" value="{{ student[0] }}">
-                        <input type="hidden" name="group_id" value="{{ student[7] }}">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xoá sinh viên {{ student[1] }} khỏi nhóm {{ student[6] }}?')">
-                            <i class="fas fa-user-minus"></i> Xoá
-                        </button>
-                    </form>
-                    {% endif %}
-                    
-                    <form method="post" class="d-inline ms-1">
-                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                        <input type="hidden" name="action" value="block">
-                        <input type="hidden" name="user_id" value="{{ student[0] }}">
-                        <input type="hidden" name="group_id" value="{{ student[7] }}">
-                        <button type="submit" class="btn btn-dark btn-sm" onclick="return confirm('Chặn sinh viên này tham gia nhóm?')">
-                            <i class="fas fa-ban"></i> Chặn
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+{% if group_data %}
+<div class="accordion" id="groupsAccordion">
+    {% for gid, data in group_data.items() %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading{{ gid }}">
+            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ gid }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ gid }}">
+                <i class="fas fa-users me-2"></i>{{ data.name }} ({{ data.students|length }} sinh viên)
+            </button>
+        </h2>
+        <div id="collapse{{ gid }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading{{ gid }}" data-bs-parent="#groupsAccordion">
+            <div class="accordion-body">
+                {% if data.students %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-user"></i> Username</th>
+                                <th><i class="fas fa-id-card"></i> Họ Tên</th>
+                                <th><i class="fas fa-hashtag"></i> Mã SV</th>
+                                <th><i class="fas fa-school"></i> Lớp</th>
+                                <th><i class="fas fa-envelope"></i> Email</th>
+                                <th><i class="fas fa-cogs"></i> Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in data.students %}
+                            <tr class="{{ 'table-warning' if student[5] == 'left' else '' }}">
+                                <td>{{ student[1] }}</td>
+                                <td>{{ student[2] }}</td>
+                                <td><code>{{ student[3] }}</code></td>
+                                <td>{{ student[4] }}</td>
+                                <td>{{ student[5] }}</td>
+                                <td>
+                                    {% if student[5] == 'left' %}
+                                    <span class="badge bg-warning text-dark mb-2">Đã rời nhóm</span><br>
+                                    <form method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                        <input type="hidden" name="action" value="add_back">
+                                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                                        <input type="hidden" name="group_id" value="{{ gid }}">
+                                        <button type="submit" class="btn btn-success btn-sm">
+                                            <i class="fas fa-user-plus"></i> Thêm lại
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                        <input type="hidden" name="action" value="remove_from_group">
+                                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                                        <input type="hidden" name="group_id" value="{{ gid }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xoá sinh viên {{ student[1] }} khỏi nhóm {{ data.name }}?')">
+                                            <i class="fas fa-user-minus"></i> Xoá
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    <form method="post" class="d-inline ms-1">
+                                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                                        <input type="hidden" name="action" value="block">
+                                        <input type="hidden" name="user_id" value="{{ student[0] }}">
+                                        <input type="hidden" name="group_id" value="{{ gid }}">
+                                        <button type="submit" class="btn btn-dark btn-sm" onclick="return confirm('Chặn sinh viên này tham gia nhóm?')">
+                                            <i class="fas fa-ban"></i> Chặn
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info"><i class="fas fa-info-circle"></i> Không có sinh viên nào trong nhóm này.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% else %}
-<div class="alert alert-info"><i class="fas fa-info-circle"></i> Không có sinh viên nào trong nhóm của bạn.</div>
+<div class="alert alert-info"><i class="fas fa-info-circle"></i> Bạn chưa tạo nhóm nào.</div>
 {% endif %}
 <a href="/dashboard" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay lại Dashboard</a>
 {% endif %}

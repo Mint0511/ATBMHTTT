@@ -7473,3 +7473,12 @@ dialog :link{
     display:none;
   }
 }
+
+/* Hide toolbar when toolbar=false parameter is set */
+body[data-hide-toolbar="true"] #toolbarContainer {
+  display: none !important;
+}
+
+body[data-hide-toolbar="true"] #viewerContainer {
+  top: 0 !important;
+}

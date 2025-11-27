@@ -25,20 +25,21 @@
                     <div class="card-header {% if current_user.role == 'teacher' %}bg-primary{% elif current_user.role == 'student' %}bg-success{% elif current_user.role == 'admin' %}bg-dark{% endif %} text-white d-flex justify-content-between align-items-center">
                         <h2 class="mb-0">
                             <i class="fas fa-tachometer-alt"></i>
-                            {% if current_user.role == 'teacher' %}Xin chào Giáo viên: {{ current_user.username }}{% elif current_user.role == 'student' %}Dashboard Sinh Viên: {{ current_user.username }}{% else %}Dashboard Admin: {{ current_user.username }}{% endif %}
+                            {% if current_user.role == 'teacher' %}Hệ thống Quản Lý Đề thi{% elif current_user.role == 'student' %}Dashboard Sinh Viên: {{ current_user.username }}{% else %}Quản Trị Hệ Thống{% endif %}
                         </h2>
                         <div>
                             {% if current_user.role == 'teacher' %}
-                            <a href="{{ url_for('admin_config') }}" class="btn btn-light btn-sm me-2">
-                                <i class="fas fa-cog"></i> CÀI ĐẶT
+                            <small class="text-white me-3">Xin chào Giáo viên: {{ current_user.username }}</small>
+                            <a href="{{ url_for('change_password') }}" class="btn btn-warning btn-sm me-2">
+                                <i class="fas fa-key"></i> Đổi mật khẩu
                             </a>
                             {% endif %}
                             {% if current_user.role == 'student' %}
                             <a href="/student/groups" class="btn btn-light btn-sm me-2">
                                 <i class="fas fa-users"></i> QUẢN LÝ NHÓM
                             </a>
-                            <a href="/student/teachers" class="btn btn-light btn-sm me-2">
-                                <i class="fas fa-chalkboard-teacher"></i> GIÁO VIÊN
+                            <a href="{{ url_for('change_password') }}" class="btn btn-warning btn-sm me-2">
+                                <i class="fas fa-key"></i> Đổi mật khẩu
                             </a>
                             {% endif %}
                             {% if current_user.role == 'admin' %}
@@ -46,9 +47,11 @@
                                 <i class="fas fa-users-cog"></i> QUẢN LÝ USERS
                             </a>
                             {% endif %}
+                            {% if current_user.role == 'admin' %}
                             <a href="{{ url_for('profile') }}" class="btn btn-info btn-sm me-2">
                                 <i class="fas fa-user"></i> PROFILE
                             </a>
+                            {% endif %}
                             <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">
                                 <i class="fas fa-sign-out-alt"></i> Đăng xuất
                             </a>

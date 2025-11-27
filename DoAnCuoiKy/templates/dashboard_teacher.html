@@ -22,7 +22,7 @@
             <i class="fas fa-user-check"></i> DUYỆT YÊU CẦU NHÓM
         </a>
         <a href="{{ url_for('manage_groups') }}" class="btn btn-secondary btn-custom">
-            <i class="fas fa-users"></i> QUẢN LÝ NHÓM
+            <i class="fas fa-users"></i> QUẢN LÝ LỚP
         </a>
         <a href="{{ url_for('manage_students') }}" class="btn btn-secondary btn-custom">
             <i class="fas fa-graduation-cap"></i> QUẢN LÝ SINH VIÊN
@@ -30,64 +30,79 @@
     </div>
 </div>
 
-<h4><i class="fas fa-file-alt"></i> Đề thi đã upload ({{ exams|length }})</h4>
-{% if exams %}
-<div class="table-responsive">
-    <table class="table table-hover table-bordered">
-        <thead class="table-dark">
-            <tr>
-                <th><i class="fas fa-tag"></i> Tên đề</th>
-                <th><i class="fas fa-file"></i> File</th>
-                <th><i class="fas fa-key"></i> Mã PIN</th>
-                <th><i class="fas fa-clock"></i> Thời gian mở</th>
-                <th><i class="fas fa-clock"></i> Thời gian hết hạn</th>
-                <th><i class="fas fa-cogs"></i> Hành động</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for e in exams %}
-            <tr>
-                <td>{{ e[4] }}</td>
-                <td>{{ e[1] }}</td>
-                <td><span class="badge bg-dark font-monospace">{{ e[5] }}</span></td>
-                <td>{{ e[2] }}</td>
-                <td>{{ e[3] }}</td>
-                <td>
-                    <div class="mb-2">
-                        <span class="badge bg-primary mb-1">Chức năng chính</span><br>
-                        <a href="{{ url_for('stream_exam_teacher', eid=e[0]) }}" class="btn btn-primary btn-sm me-1" target="_blank" title="Xem nội dung đề thi">
-                            <i class="fas fa-eye"></i> Xem
-                        </a>
-                        <a href="{{ url_for('edit_exam', eid=e[0]) }}" class="btn btn-secondary btn-sm me-1" title="Chỉnh sửa cấu hình">
-                            <i class="fas fa-edit"></i> Sửa
-                        </a>
-                        <a href="/teacher/exam_logs/{{ e[0] }}" class="btn btn-info btn-sm me-1 text-white" title="Xem nhật ký truy cập">
-                            <i class="fas fa-history"></i> Logs
-                        </a>
-                        <a href="{{ url_for('delete_exam', eid=e[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa đề thi này?')">
-                            <i class="fas fa-trash"></i> Xóa
-                        </a>
-                    </div>
-                    <div class="border-top pt-2">
-                        <span class="badge bg-warning text-dark mb-1">Demo / Debug</span><br>
-                        <a href="{{ url_for('preview_encrypted', eid=e[0]) }}" class="btn btn-outline-dark btn-sm me-1" target="_blank" title="Xem file đã mã hoá (Hex view)">
-                            <i class="fas fa-file-code"></i> Xem Enc
-                        </a>
-                        <a href="/teacher/debug_exam/{{ e[0] }}" class="btn btn-dark btn-sm me-1" title="Soi chi tiết kỹ thuật Crypto">
-                            <i class="fas fa-microchip"></i> Soi
-                        </a>
-                        <a href="{{ url_for('tamper_exam', eid=e[0]) }}" class="btn btn-warning btn-sm me-1" onclick="return confirm('CẢNH BÁO: Hành động này sẽ sửa đổi 1 byte trong file mã hoá để giả lập tấn công. File sẽ bị hỏng. Tiếp tục?')">
-                            <i class="fas fa-bug"></i> Phá
-                        </a>
-                        <a href="{{ url_for('restore_exam', eid=e[0]) }}" class="btn btn-success btn-sm me-1" title="Khôi phục file gốc">
-                            <i class="fas fa-tools"></i> Fix
-                        </a>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<h4><i class="fas fa-file-alt"></i> Đề thi đã upload</h4>
+{% if group_data %}
+<div class="accordion" id="groupsAccordion">
+    {% for gid, data in group_data.items() %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading{{ gid }}">
+            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ gid }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ gid }}">
+                <i class="fas fa-users me-2"></i>{{ data.name }} ({{ data.exams|length }} đề thi)
+            </button>
+        </h2>
+        <div id="collapse{{ gid }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading{{ gid }}" data-bs-parent="#groupsAccordion">
+            <div class="accordion-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-tag"></i> Tên đề</th>
+                                <th><i class="fas fa-file"></i> File</th>
+                                <th><i class="fas fa-key"></i> Mã PIN</th>
+                                <th><i class="fas fa-clock"></i> Thời gian mở</th>
+                                <th><i class="fas fa-clock"></i> Thời gian hết hạn</th>
+                                <th><i class="fas fa-cogs"></i> Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in data.exams %}
+                            <tr>
+                                <td>{{ e[4] }}</td>
+                                <td>{{ e[1] }}</td>
+                                <td><span class="badge bg-dark font-monospace">{{ e[5] }}</span></td>
+                                <td>{{ e[2] }}</td>
+                                <td>{{ e[3] }}</td>
+                                <td>
+                                    <div class="mb-2">
+                                        <span class="badge bg-primary mb-1">Chức năng chính</span><br>
+                                        <a href="{{ url_for('stream_exam_teacher', eid=e[0]) }}" class="btn btn-primary btn-sm me-1" target="_blank" title="Xem nội dung đề thi" style="display:none;">
+                                            <i class="fas fa-eye"></i> Xem
+                                        </a>
+                                        <a href="{{ url_for('edit_exam', eid=e[0]) }}" class="btn btn-secondary btn-sm me-1" title="Chỉnh sửa cấu hình">
+                                            <i class="fas fa-edit"></i> Sửa
+                                        </a>
+                                        <a href="/teacher/exam_logs/{{ e[0] }}" class="btn btn-info btn-sm me-1 text-white" title="Xem nhật ký truy cập">
+                                            <i class="fas fa-history"></i> Logs
+                                        </a>
+                                        <a href="{{ url_for('delete_exam', eid=e[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa đề thi này?')">
+                                            <i class="fas fa-trash"></i> Xóa
+                                        </a>
+                                    </div>
+                                    <div class="border-top pt-2">
+                                        <span class="badge bg-warning text-dark mb-1">Demo / Debug</span><br>
+                                        <a href="{{ url_for('preview_encrypted', eid=e[0]) }}" class="btn btn-outline-dark btn-sm me-1" target="_blank" title="Xem file đã mã hoá (Hex view)">
+                                            <i class="fas fa-file-code"></i> Xem Enc
+                                        </a>
+                                        <a href="/teacher/debug_exam/{{ e[0] }}" class="btn btn-dark btn-sm me-1" title="Soi chi tiết kỹ thuật Crypto">
+                                            <i class="fas fa-microchip"></i> Soi
+                                        </a>
+                                        <a href="{{ url_for('tamper_exam', eid=e[0]) }}" class="btn btn-warning btn-sm me-1" onclick="return confirm('CẢNH BÁO: Hành động này sẽ sửa đổi 1 byte trong file mã hoá để giả lập tấn công. File sẽ bị hỏng. Tiếp tục?')" style="display:none;">
+                                            <i class="fas fa-bug"></i> Phá
+                                        </a>
+                                        <a href="{{ url_for('restore_exam', eid=e[0]) }}" class="btn btn-success btn-sm me-1" title="Khôi phục file gốc" style="display:none;">
+                                            <i class="fas fa-tools"></i> Fix
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% else %}
 <div class="text-center py-4">
