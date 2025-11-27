@@ -1,68 +1,146 @@
 {% extends "base.html" %}
-{% block title %}Nộp Bài | Hệ thống Đề thi{% endblock %}
-{% block header %}
-<div class="card-header bg-primary text-white text-center">
-    <h2 class="mb-0"><i class="fas fa-file-upload"></i> Nộp Bài</h2>
-</div>
+{% block title %}Nộp Bài Thi{% endblock %}
+{% block extra_style %}
+@keyframes blink {
+    0%, 50%, 100% { opacity: 1; }
+    25%, 75% { opacity: 0.3; }
+}
+.time-warning {
+    animation: blink 1s infinite;
+}
 {% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card">
-                <div class="card-body">
-                    {% if success_msg %}
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle"></i> {{ success_msg }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                        <a href="/dashboard" class="btn btn-primary">Quay lại Dashboard</a>
-                    {% else %}
-                        {% if errors %}
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                {% for error in errors %}
-                                    <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
-                                {% endfor %}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        {% endif %}
-
-                        {% if time_remaining > 0 %}
-                            <div class="alert alert-info">
-                                <strong>Thời gian còn lại:</strong> <span id="timer">{{ time_remaining }}</span> phút
-                            </div>
-                            
-                            <form method="post" enctype="multipart/form-data">
-                                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                                <div class="mb-3">
-                                    <label for="file" class="form-label">Chọn file bài làm (PDF hoặc DOCX)</label>
-                                    <input type="file" class="form-control" name="file" id="file" accept=".pdf,.docx" required>
-                                    <small class="form-text text-muted">Hỗ trợ: PDF, DOCX</small>
-                                </div>
-                                <button type="submit" class="btn btn-success">Nộp Bài</button>
-                                <a href="/dashboard" class="btn btn-secondary">Hủy</a>
-                            </form>
-                        {% else %}
-                            <div class="alert alert-danger">
-                                <i class="fas fa-times-circle"></i> Đề thi đã hết hạn, không thể nộp bài
-                            </div>
-                            <a href="/dashboard" class="btn btn-primary">Quay lại</a>
-                        {% endif %}
-                    {% endif %}
+    <h2><i class="fas fa-upload"></i> Nộp Bài Thi: {{ exam.ten_de }}</h2>
+    
+    <!-- Countdown Timer -->
+    <div class="alert alert-info mb-4" id="timer-alert">
+        <i class="fas fa-stopwatch"></i> <strong>Thời gian còn lại:</strong> 
+        <span id="countdown" class="fw-bold fs-5">Đang tính...</span>
+    </div>
+    
+    {% if errors %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {% for error in errors %}
+            <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    
+    {% if success_msg %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle"></i> {{ success_msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    
+    <!-- Existing Submission Info -->
+    {% if existing %}
+    <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+            <i class="fas fa-check-circle"></i> Bài Đã Nộp
+        </div>
+        <div class="card-body">
+            <p><strong>File:</strong> {{ existing[1] }}</p>
+            <p><strong>Thời gian nộp:</strong> {{ existing[2] }}</p>
+            {% if existing[3] is not none %}
+            <p><strong>Điểm:</strong> <span class="badge bg-primary fs-5">{{ existing[3] }}/10</span></p>
+            {% if existing[4] %}
+            <p><strong>Nhận xét:</strong> {{ existing[4] }}</p>
+            {% endif %}
+            {% else %}
+            <p class="text-muted"><em>Chưa được chấm điểm</em></p>
+            {% endif %}
+            <p class="text-info"><i class="fas fa-info-circle"></i> Bạn có thể nộp lại để thay thế bài cũ (nếu còn thời gian)</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Upload Form -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-file-upload"></i> {% if existing %}Nộp Lại Bài Mới{% else %}Nộp Bài{% endif %}
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" id="submitForm">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                
+                <div class="mb-3">
+                    <label for="file" class="form-label"><i class="fas fa-file-pdf"></i> Chọn file bài làm (PDF) <span class="text-danger">*</span></label>
+                    <input type="file" id="file" name="file" class="form-control" accept=".pdf,application/pdf" required>
+                    <div class="form-text">Chỉ chấp nhận file PDF. File sẽ được mã hóa an toàn bằng AES-256-GCM.</div>
                 </div>
-            </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Lưu ý:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>File phải là định dạng PDF</li>
+                        <li>Bài nộp sẽ được mã hóa bằng AES-256-GCM để bảo mật</li>
+                        <li>Nếu nộp lại, bài cũ sẽ bị thay thế hoàn toàn</li>
+                        <li>Sau khi hết giờ, bạn không thể nộp hoặc sửa bài</li>
+                    </ul>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                        <i class="fas fa-paper-plane"></i> {% if existing %}Nộp Lại{% else %}Nộp Bài{% endif %}
+                    </button>
+                    <a href="/dashboard" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <script>
-// Timer countdown
-let timeRemaining = {{ time_remaining }};
-setInterval(function() {
-    if (timeRemaining > 0) {
+document.addEventListener('DOMContentLoaded', function() {
+    var timeRemaining = {{ exam.time_remaining|int }};
+    var oneMinuteWarningShown = false;
+    
+    function updateCountdown() {
+        if (timeRemaining <= 0) {
+            document.getElementById('countdown').innerHTML = '<span class="text-danger">HẾT GIỜ</span>';
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('file').disabled = true;
+            document.getElementById('timer-alert').innerHTML = '<i class="fas fa-times-circle"></i> <strong>Đã hết thời gian nộp bài!</strong>';
+            return;
+        }
+        
+        var hours = Math.floor(timeRemaining / 3600);
+        var minutes = Math.floor((timeRemaining % 3600) / 60);
+        var seconds = timeRemaining % 60;
+        
+        document.getElementById('countdown').innerHTML = 
+            (hours < 10 ? "0" + hours : hours) + ":" + 
+            (minutes < 10 ? "0" + minutes : minutes) + ":" + 
+            (seconds < 10 ? "0" + seconds : seconds);
+        
+        // Cảnh báo còn 1 phút
+        if (timeRemaining <= 60 && !oneMinuteWarningShown) {
+            oneMinuteWarningShown = true;
+            alert("⚠️ SẮP HẾT GIỜ! Chỉ còn 1 phút để nộp bài. Vui lòng nộp bài ngay!");
+            document.getElementById('timer-alert').classList.add('alert-danger', 'time-warning');
+            document.getElementById('timer-alert').classList.remove('alert-info');
+        }
+        
+        // Đổi màu cảnh báo
+        if (timeRemaining < 300) { // < 5 phút
+            document.getElementById('timer-alert').classList.add('alert-warning');
+            document.getElementById('timer-alert').classList.remove('alert-info');
+        }
+        if (timeRemaining < 60) { // < 1 phút
+            document.getElementById('timer-alert').classList.add('alert-danger', 'time-warning');
+            document.getElementById('timer-alert').classList.remove('alert-warning');
+        }
+        
         timeRemaining--;
-        document.getElementById('timer').textContent = timeRemaining;
+        setTimeout(updateCountdown, 1000);
     }
-}, 60000); // Update every minute
+    
+    updateCountdown();
+});
 </script>
 {% endblock %}

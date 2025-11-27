@@ -9,6 +9,26 @@
 {% endblock %}
 
 {% block content %}
+<!-- User Info Card -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-user-circle"></i> Thông Tin Cá Nhân</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Tên đăng nhập:</strong> {{ user_info.username }}</p>
+                <p class="mb-2"><strong>Họ và tên:</strong> {{ user_info.full_name }}</p>
+                <p class="mb-0"><strong>Mã giáo viên:</strong> {{ user_info.teacher_id }}</p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Email:</strong> {{ user_info.email }}</p>
+                <p class="mb-0"><strong>Lớp giảng dạy:</strong> {{ user_info.class_name }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mb-4">
     <div class="col-md-6">
         <h4><i class="fas fa-upload"></i> Upload đề thi mới</h4>
@@ -68,11 +88,20 @@
                                         <a href="{{ url_for('stream_exam_teacher', eid=e[0]) }}" class="btn btn-primary btn-sm me-1" target="_blank" title="Xem nội dung đề thi" style="display:none;">
                                             <i class="fas fa-eye"></i> Xem
                                         </a>
+                                        {% if e[6] != 'expired' %}
                                         <a href="{{ url_for('edit_exam', eid=e[0]) }}" class="btn btn-secondary btn-sm me-1" title="Chỉnh sửa cấu hình">
                                             <i class="fas fa-edit"></i> Sửa
                                         </a>
+                                        {% else %}
+                                        <button class="btn btn-secondary btn-sm me-1" disabled title="Đề thi đã hết hạn, không thể sửa">
+                                            <i class="fas fa-edit"></i> Sửa
+                                        </button>
+                                        {% endif %}
                                         <a href="/teacher/exam_logs/{{ e[0] }}" class="btn btn-info btn-sm me-1 text-white" title="Xem nhật ký truy cập">
                                             <i class="fas fa-history"></i> Logs
+                                        </a>
+                                        <a href="{{ url_for('teacher_submissions', eid=e[0]) }}" class="btn btn-warning btn-sm me-1 text-dark" title="Xem bài nộp của sinh viên">
+                                            <i class="fas fa-file-alt"></i> Bài nộp
                                         </a>
                                         <a href="{{ url_for('delete_exam', eid=e[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa đề thi này?')">
                                             <i class="fas fa-trash"></i> Xóa

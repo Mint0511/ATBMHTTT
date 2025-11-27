@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Bài Nộp Của Tôi{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-file-alt"></i> Bài Nộp Của Tôi</h2>
+        <a href="/dashboard" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+        </a>
+    </div>
+    
+    {% if submissions %}
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>STT</th>
+                            <th>Đề thi</th>
+                            <th>File nộp</th>
+                            <th>Thời gian nộp</th>
+                            <th>Điểm</th>
+                            <th>Nhận xét</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sub in submissions %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ sub[1] }}</td>
+                            <td><i class="fas fa-file-pdf text-danger"></i> {{ sub[2] }}</td>
+                            <td>{{ sub[3] }}</td>
+                            <td>
+                                {% if sub[4] is not none %}
+                                <span class="badge bg-success fs-6">{{ sub[4] }}/10</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Chưa chấm</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if sub[5] %}
+                                <small>{{ sub[5] }}</small>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('download_submission', sid=sub[0]) }}" class="btn btn-sm btn-primary" title="Tải xuống bài làm">
+                                    <i class="fas fa-download"></i> Tải
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle"></i> <strong>Thống kê:</strong> 
+                Tổng {{ submissions|length }} bài đã nộp
+                {% set graded = submissions|selectattr('4', 'ne', none)|list|length %}
+                - Đã có điểm: {{ graded }} 
+                - Chưa có điểm: {{ submissions|length - graded }}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-inbox"></i> Bạn chưa nộp bài nào.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Chấm Điểm{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="fas fa-pen-square"></i> Chấm Điểm Bài Thi</h2>
+    
+    {% if errors %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {% for error in errors %}
+            <div><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    
+    {% if success_msg %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle"></i> {{ success_msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    
+    <!-- Student Info -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <i class="fas fa-user"></i> Thông Tin Sinh Viên
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Đề thi:</strong> {{ submission[10] }}</p>
+                    <p><strong>Mã SV:</strong> {{ submission[9] or 'Chưa cập nhật' }}</p>
+                    <p><strong>Họ tên:</strong> {{ submission[8] or 'Chưa cập nhật' }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Username:</strong> {{ submission[7] }}</p>
+                    <p><strong>File nộp:</strong> {{ submission[3] }}</p>
+                    <p><strong>Thời gian nộp:</strong> {{ submission[4] }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Download Submission -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-file-alt"></i> Bài Làm Của Sinh Viên
+        </div>
+        <div class="card-body">
+            <a href="{{ url_for('view_submission', sid=submission[0]) }}" class="btn btn-lg btn-info me-2" target="_blank">
+                <i class="fas fa-eye"></i> Xem Trên Web
+            </a>
+            <a href="{{ url_for('download_submission', sid=submission[0]) }}" class="btn btn-lg btn-primary">
+                <i class="fas fa-file-download"></i> Tải Xuống
+            </a>
+            <p class="text-muted mt-2"><small>File được mã hóa và sẽ được giải mã tự động khi xem/tải xuống</small></p>
+        </div>
+    </div>
+    
+    <!-- Grading Form -->
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <i class="fas fa-star"></i> Chấm Điểm
+        </div>
+        <div class="card-body">
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                
+                <div class="mb-3">
+                    <label for="score" class="form-label"><i class="fas fa-trophy"></i> Điểm (0-10) <span class="text-danger">*</span></label>
+                    <input type="number" id="score" name="score" class="form-control" 
+                           value="{{ submission[5] if submission[5] is not none else '' }}" 
+                           min="0" max="10" step="0.25" placeholder="Nhập điểm từ 0 đến 10">
+                    <div class="form-text">Có thể nhập số thập phân (VD: 8.5, 9.25)</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="teacher_note" class="form-label"><i class="fas fa-comment"></i> Nhận xét</label>
+                    <textarea id="teacher_note" name="teacher_note" class="form-control" rows="4" 
+                              placeholder="Nhận xét về bài làm của sinh viên...">{{ submission[6] or '' }}</textarea>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-save"></i> Lưu Điểm
+                    </button>
+                    <a href="{{ url_for('teacher_submissions', eid=submission[1]) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Quay lại Danh Sách
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

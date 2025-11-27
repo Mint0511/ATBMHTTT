@@ -97,16 +97,6 @@
                         </button>
                     </form>
                     {% endif %}
-                    
-                    <!-- Delete Button -->
-                    <form method="post" style="display:inline;">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="user_id" value="{{ user[0] }}">
-                        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?')">
-                            <i class="fas fa-trash"></i> Xóa
-                        </button>
-                    </form>
                     {% endif %}
                 </td>
             </tr>

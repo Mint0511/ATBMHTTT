@@ -18,6 +18,32 @@
 {% endblock %}
 
 {% block content %}
+<!-- User Info Card -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-user-circle"></i> Thông Tin Cá Nhân</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Tên đăng nhập:</strong> {{ user_info.username }}</p>
+                <p class="mb-2"><strong>Họ và tên:</strong> {{ user_info.full_name }}</p>
+                <p class="mb-0"><strong>Mã sinh viên:</strong> {{ user_info.student_id }}</p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Email:</strong> {{ user_info.email }}</p>
+                <p class="mb-0"><strong>Lớp:</strong> {{ user_info.class_name }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-4 text-end">
+    <a href="{{ url_for('student_submissions') }}" class="btn btn-primary">
+        <i class="fas fa-file-alt"></i> Xem Bài Nộp & Điểm Của Tôi
+    </a>
+</div>
+
 <h4 class="mb-3"><i class="fas fa-users"></i> Nhóm lớp của bạn:</h4>
 {% if groups %}
 <div class="list-group">

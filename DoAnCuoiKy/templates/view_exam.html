@@ -17,6 +17,15 @@
             border: 1px solid #dee2e6;
             border-radius: 0.375rem;
         }
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.5; }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,193,7,0.8); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -26,8 +35,13 @@
                 <div class="card card-custom">
                     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                         <h3 class="mb-0"><i class="fas fa-eye"></i> {{ exam_title }}</h3>
-                        <div id="timer-container" class="bg-danger px-3 py-2 rounded fw-bold" style="display: none;">
-                            <i class="fas fa-stopwatch"></i> Còn lại: <span id="countdown">00:00:00</span>
+                        <div>
+                            <a href="{{ url_for('submit_exam', eid=eid) }}" class="btn btn-warning me-2">
+                                <i class="fas fa-upload"></i> Nộp Bài
+                            </a>
+                            <div id="timer-container" class="d-inline-block bg-danger px-3 py-2 rounded fw-bold" style="display: none;">
+                                <i class="fas fa-stopwatch"></i> Còn lại: <span id="countdown">00:00:00</span>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
@@ -39,11 +53,12 @@
                             // Để đơn giản cho demo, ta lấy thời gian hết hạn từ server
                             
                             document.addEventListener('DOMContentLoaded', function() {
-                                document.getElementById('timer-container').style.display = 'block';
+                                document.getElementById('timer-container').style.display = 'inline-block';
                                 
                                 // Lấy thời gian hết hạn từ biến server (cần update app.py để truyền biến này)
                                 // Tạm thời dùng JS để demo đếm ngược 60 phút hoặc đến mốc expire
                                 var expireTime = new Date("{{ expire_time }}").getTime();
+                                var oneMinuteWarningShown = false;
                                 
                                 var x = setInterval(function() {
                                     var now = new Date().getTime();
@@ -52,10 +67,20 @@
                                     if (distance < 0) {
                                         clearInterval(x);
                                         document.getElementById("countdown").innerHTML = "HẾT GIỜ";
-                                        // Có thể thêm logic disable iframe hoặc redirect
-                                        alert("Đã hết giờ làm bài!");
+                                        alert("⏰ Đã hết giờ làm bài! Hệ thống sẽ chuyển về Dashboard.");
                                         window.location.href = "/dashboard";
                                         return;
+                                    }
+                                    
+                                    // Cảnh báo còn 1 phút
+                                    if (distance <= 60000 && !oneMinuteWarningShown) {
+                                        oneMinuteWarningShown = true;
+                                        alert("⚠️ SẮP HẾT GIỜ! Chỉ còn 1 phút để nộp bài. Vui lòng nộp bài ngay!");
+                                        // Highlight submit button
+                                        document.querySelectorAll('a[href*="submit_exam"]').forEach(function(btn) {
+                                            btn.classList.add('btn-pulse');
+                                            btn.style.animation = 'pulse 1s infinite';
+                                        });
                                     }
                                     
                                     var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -66,6 +91,16 @@
                                         (hours < 10 ? "0" + hours : hours) + ":" + 
                                         (minutes < 10 ? "0" + minutes : minutes) + ":" + 
                                         (seconds < 10 ? "0" + seconds : seconds);
+                                    
+                                    // Đổi màu warning khi còn < 5 phút
+                                    if (distance < 300000) {
+                                        document.getElementById("timer-container").className = 'd-inline-block bg-warning text-dark px-3 py-2 rounded fw-bold';
+                                    }
+                                    // Đổi màu nguy hiểm khi còn < 1 phút
+                                    if (distance < 60000) {
+                                        document.getElementById("timer-container").className = 'd-inline-block bg-danger text-white px-3 py-2 rounded fw-bold';
+                                        document.getElementById("timer-container").style.animation = 'blink 1s infinite';
+                                    }
                                 }, 1000);
                             });
                         </script>

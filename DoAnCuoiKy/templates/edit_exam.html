@@ -48,36 +48,42 @@
                                 <i class="fas fa-info-circle"></i> Bạn đang chỉnh sửa cấu hình cho đề thi: <strong>{{ exam.ten_de }}</strong>. 
                                 <br>File đề thi gốc đã được mã hóa và không thể thay đổi tại đây (nếu muốn đổi file, vui lòng xóa và upload lại).
                             </div>
+                            
+                            {% if exam_status %}
+                            <div class="alert {% if exam_status == 'expired' %}alert-danger{% elif exam_status == 'active' %}alert-warning{% else %}alert-info{% endif %}">
+                                <i class="fas fa-info-circle"></i> <strong>{{ status_message }}</strong>
+                                {% if exam_status == 'active' %}
+                                <br><small>Lưu ý: Thời gian mở đề không thể thay đổi khi đề đang mở. Chỉ có thể gia hạn thêm thời gian đóng đề.</small>
+                                {% elif exam_status == 'expired' %}
+                                <br><small>Lưu ý: Đề thi đã hết hạn không thể chỉnh sửa. Vui lòng quay lại Dashboard.</small>
+                                {% else %}
+                                <br><small>Mở đề: <strong>{{ exam.release_display }}</strong> | Đóng đề: <strong>{{ exam.expire_display }}</strong></small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
 
                             <div class="mb-3">
                                 <label for="ten_de" class="form-label"><i class="fas fa-tag"></i> Tên đề thi / Môn học <span class="text-danger">*</span></label>
-                                <input type="text" id="ten_de" name="ten_de" class="form-control" value="{{ exam.ten_de }}" required>
+                                <input type="text" id="ten_de" name="ten_de" class="form-control" value="{{ exam.ten_de }}" {% if exam_status == 'expired' %}readonly{% endif %} required>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-calendar-alt"></i> Thời gian mở đề</label>
+                                <label class="form-label"><i class="fas fa-calendar-alt"></i> Thời gian mở đề ({{ exam.release_display }})</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="date" name="release_date" class="form-control" value="{{ exam.release_date }}" required>
+                                        <input type="date" name="release_date" class="form-control" value="{{ exam.release_date }}" {% if exam_status == 'active' or exam_status == 'expired' %}readonly{% endif %} required>
                                     </div>
                                     <div class="col-md-6">
-                                        <input type="time" name="release_time" class="form-control" value="{{ exam.release_time }}" required>
-                                        <div class="form-text text-muted">Định dạng 24h (VD: 13:30 là 1h30 chiều)</div>
+                                        <input type="time" name="release_time" class="form-control" value="{{ exam.release_time }}" {% if exam_status == 'active' or exam_status == 'expired' %}readonly{% endif %} required>
+                                        <div class="form-text text-muted">Định dạng 24h{% if exam_status == 'active' %} - Không thể sửa khi đề đang mở{% endif %}</div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-clock"></i> Thời gian đóng đề</label>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <input type="date" name="expire_date" class="form-control" value="{{ exam.expire_date }}" required>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <input type="time" name="expire_time" class="form-control" value="{{ exam.expire_time }}" required>
-                                        <div class="form-text text-muted">Định dạng 24h (VD: 13:30 là 1h30 chiều)</div>
-                                    </div>
-                                </div>
+                                <label class="form-label"><i class="fas fa-clock"></i> Thời lượng thi (phút){% if exam_status == 'active' %} - Chỉ có thể tăng{% endif %}</label>
+                                <input type="number" name="expire_minutes" class="form-control" value="{{ exam.duration_minutes }}" min="10" {% if exam_status == 'expired' %}readonly{% endif %} required>
+                                <div class="form-text text-muted">{% if exam_status == 'active' %}Hiện tại đóng đề lúc: <strong>{{ exam.expire_display }}</strong>. Tăng số phút để gia hạn.{% else %}Thời gian từ khi mở đề đến khi đóng đề (tối thiểu 10 phút){% endif %}</div>
                             </div>
 
                             <div class="mb-3">
@@ -116,11 +122,11 @@
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary" {% if exam_status == 'expired' %}disabled{% endif %}>
                                     <i class="fas fa-save"></i> LƯU THAY ĐỔI
                                 </button>
                                 <a href="/dashboard" class="btn btn-secondary">
-                                    <i class="fas fa-times"></i> Hủy bỏ
+                                    <i class="fas fa-times"></i> {% if exam_status == 'expired' %}Quay lại Dashboard{% else %}Hủy bỏ{% endif %}
                                 </a>
                             </div>
                         </form>
