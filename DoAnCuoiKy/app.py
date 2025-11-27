@@ -1167,6 +1167,12 @@ def create_group():
         if not name:
             flash('Tên nhóm không được để trống')
             return render_template('groups.html', mode='create')
+        
+        # Kiểm tra tên lớp trùng
+        if c.execute("SELECT 1 FROM groups WHERE name=? AND teacher_id=?", (name, current_user.id)).fetchone():
+            flash('Tên nhóm đã tồn tại')
+            return render_template('groups.html', mode='create')
+        
         import string, random
         code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         # Không còn dùng aes_key nhóm -> lưu NULL
@@ -1185,6 +1191,33 @@ def manage_groups():
         return redirect('/dashboard')
     groups = c.execute("SELECT id, name, description, code FROM groups WHERE teacher_id=?", (current_user.id,)).fetchall()
     return render_template('groups.html', mode='list', groups=groups)
+
+# ----- DELETE GROUP (TEACHER) -----
+@app.route('/delete_group/<int:gid>', methods=['POST','GET'])
+@login_required
+def delete_group(gid):
+    if current_user.role != 'teacher':
+        return redirect('/dashboard')
+    
+    # Check if group belongs to teacher
+    group = c.execute("SELECT name FROM groups WHERE id=? AND teacher_id=?", (gid, current_user.id)).fetchone()
+    if not group:
+        flash('Không có quyền truy cập nhóm này')
+        return redirect('/manage_groups')
+    
+    # Kiểm tra lớp có sinh viên không
+    student_count = c.execute("SELECT COUNT(*) FROM group_members WHERE group_id=? AND status='approved'", (gid,)).fetchone()[0]
+    if student_count > 0:
+        flash(f'Không thể xóa lớp {group[0]} vì còn {student_count} sinh viên trong lớp')
+        return redirect('/manage_groups')
+    
+    # Xóa tất cả group_members (nếu có request chưa approved)
+    c.execute("DELETE FROM group_members WHERE group_id=?", (gid,))
+    # Xóa group
+    c.execute("DELETE FROM groups WHERE id=?", (gid,))
+    conn.commit()
+    flash(f'Xóa lớp {group[0]} thành công')
+    return redirect('/manage_groups')
 
 # Đã bỏ toàn bộ chức năng bài viết và bình luận.
 
@@ -1288,7 +1321,37 @@ def admin_users():
     if request.method == 'POST':
         verify_csrf()
         action = request.form.get('action')
-        if action == 'add':
+        
+        if action == 'reset_password':
+            user_id = request.form.get('user_id')
+            new_password = request.form.get('new_password', '').strip()
+            confirm_password = request.form.get('confirm_password', '').strip()
+            
+            if not new_password or not confirm_password:
+                errors.append('Vui lòng nhập mật khẩu')
+            elif len(new_password) < 6:
+                errors.append('Mật khẩu phải ≥ 6 ký tự')
+            elif new_password != confirm_password:
+                errors.append('Mật khẩu không khớp')
+            else:
+                try:
+                    # Lấy user hiện tại
+                    user = c.execute("SELECT password, salt FROM users WHERE id=?", (user_id,)).fetchone()
+                    if not user:
+                        errors.append('Không tìm thấy người dùng')
+                    else:
+                        # Tạo salt mới và hash mật khẩu
+                        salt = os.urandom(16).hex()
+                        hashed_password = generate_password_hash(new_password + salt)
+                        
+                        # Update mật khẩu
+                        c.execute("UPDATE users SET password=?, salt=? WHERE id=?", (hashed_password, salt, user_id))
+                        conn.commit()
+                        success_msg = '✅ Đã cấp lại mật khẩu thành công!'
+                except Exception as e:
+                    errors.append(f'Lỗi: {str(e)}')
+        
+        elif action == 'add':
             u = request.form['username'].strip()
             p = request.form['password']
             r = request.form['role']
