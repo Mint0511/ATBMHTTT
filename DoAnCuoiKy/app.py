@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-import sqlite3, os, datetime, pyotp, smtplib, secrets, base64
+import sqlite3, os, datetime, smtplib, secrets, base64
 from email.message import EmailMessage
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
@@ -686,7 +686,7 @@ def upload():
         pin_code = ''.join(secrets.choice('0123456789') for _ in range(6))
         
         # Lấy auth_mode từ form
-        auth_mode = request.form.get('auth_mode', 'both')
+        auth_mode = request.form.get('auth_mode', 'pin')
         
         allowed_groups_str = ','.join(selected_groups)
 
@@ -699,62 +699,6 @@ def upload():
         return redirect('/dashboard')
     return render_template('upload.html', groups=groups, errors=errors)
 
-# ----- SEND OTP -----
-@app.route('/send_otp/<int:eid>')
-@login_required
-def send_otp(eid):
-    if current_user.role!='student': return redirect('/dashboard')
-    # Rate limit OTP (60s)
-    last_key = f'last_otp_{eid}'
-    last_ts = session.get(last_key)
-    now_ts = datetime.datetime.now().timestamp()
-    if last_ts and now_ts - last_ts < 60:
-        flash('⏱️ Vui lòng đợi 60 giây trước khi yêu cầu OTP mới để tránh spam.', 'warning')
-        return redirect(url_for('view_exam', eid=eid))
-    row = c.execute("SELECT release_time, expire_time, allowed_groups FROM exams WHERE id=?",(eid,)).fetchone()
-    if not row: flash('Không tìm thấy đề thi'); return redirect(url_for('dashboard'))
-    release_time_str, expire_time_str, allowed_groups = row
-    
-    # Check permission by groups
-    if allowed_groups:
-        student_groups = c.execute("SELECT group_id FROM group_members WHERE student_id=? AND status='approved'", (current_user.id,)).fetchall()
-        student_group_ids = [str(g[0]) for g in student_groups]
-        exam_group_ids = allowed_groups.split(',')
-        has_permission = any(gid in student_group_ids for gid in exam_group_ids)
-        if not has_permission:
-            flash('Bạn không có quyền truy cập đề thi này'); return redirect(url_for('dashboard'))
-    now = datetime.datetime.now()
-    release_time = parse_datetime(release_time_str)
-    expire_time = parse_datetime(expire_time_str)
-    if now < release_time: flash(f'⏰ Đề thi chưa mở! Sẽ mở lúc: {release_time.strftime("%H:%M %d/%m/%Y")}', 'warning'); return redirect(url_for('dashboard'))
-    if now > expire_time: flash('⏰ Đề thi đã hết hạn! Không thể xem hoặc làm bài nữa.', 'danger'); return redirect(url_for('dashboard'))
-    row = c.execute("SELECT value FROM config WHERE key='mail_username'").fetchone()
-    gmail_user = row[0] if row else ''
-    row = c.execute("SELECT value FROM config WHERE key='mail_password'").fetchone()
-    app_pass = row[0] if row else ''
-    if not gmail_user or not app_pass: flash('Chưa cài Gmail OTP!'); return redirect(url_for('dashboard'))
-    secret = pyotp.random_base32()
-    totp = pyotp.TOTP(secret, interval=30)
-    otp = totp.now()
-    # Send email
-    msg = EmailMessage()
-    msg['From'] = gmail_user
-    msg['To'] = current_user.email
-    msg['Subject'] = 'Mã OTP truy cập đề thi'
-    msg.set_content(f"Chào {current_user.username}, OTP: {otp}")
-    try:
-        with smtplib.SMTP('smtp.gmail.com',587) as server:
-            server.starttls()
-            server.login(gmail_user,app_pass)
-            server.send_message(msg)
-        session[f'otp_{eid}']=secret
-        session[last_key] = now_ts
-        flash('✅ Mã OTP đã được gửi đến email của bạn! Vui lòng kiểm tra và nhập mã trong 30 giây.', 'success')
-        return redirect(url_for('view_exam', eid=eid))
-    except Exception as e:
-        flash(f'Gửi thất bại: {str(e)}','danger')
-    return redirect(url_for('dashboard'))
-
 # ----- VERIFY OTP & VIEW -----
 @app.route('/view_exam/<int:eid>', methods=['GET','POST'])
 @login_required
@@ -764,7 +708,7 @@ def view_exam(eid):
         row = c.execute("SELECT release_time, expire_time, allowed_groups, pin_code, auth_mode FROM exams WHERE id=?",(eid,)).fetchone()
         if not row: flash('Không tìm thấy đề thi'); return redirect(url_for('dashboard'))
         release_time_str, expire_time_str, allowed_groups, pin_code, auth_mode = row
-        if not auth_mode: auth_mode = 'both' # Default for old records
+        if not auth_mode: auth_mode = 'pin' # Default for old records
         
         # Check permission by groups
         if allowed_groups:
@@ -780,28 +724,13 @@ def view_exam(eid):
         if now < release_time: flash('Đề thi chưa mở!'); return redirect(url_for('dashboard'))
         if now > expire_time: flash('Đề thi đã hết hạn!'); return redirect(url_for('dashboard'))
         
-        # Check OTP or PIN
-        auth_type = request.form.get('auth_type')
-        
-        if auth_type == 'pin':
-            if auth_mode == 'otp':
-                flash('Đề thi này chỉ cho phép xác thực bằng OTP Email'); return redirect(url_for('view_exam', eid=eid))
-            pin_input = request.form.get('pin_input', '').strip()
-            if not pin_code: 
-                 flash('❌ Đề thi này chưa được giáo viên thiết lập mã PIN.', 'warning'); return redirect(url_for('view_exam', eid=eid))
-            if pin_input != pin_code:
-                flash('❌ Mã PIN không đúng! Vui lòng nhập đúng mã ca thi mà giáo viên cung cấp.', 'danger'); return redirect(url_for('view_exam', eid=eid))
-            # Success with PIN
-        else: # Default OTP
-            if auth_mode == 'pin':
-                flash('Đề thi này chỉ cho phép xác thực bằng Mã Ca Thi (PIN)'); return redirect(url_for('view_exam', eid=eid))
-            otp_input = request.form.get('otp','').strip()
-            secret = session.get(f'otp_{eid}')
-            if not secret: flash('❌ Chưa gửi OTP! Vui lòng bấm "Gửi OTP qua Email" trước.', 'warning'); return redirect(url_for('view_exam', eid=eid))
-            totp = pyotp.TOTP(secret, interval=30)
-            if not totp.verify(otp_input, valid_window=1):
-                flash('❌ Mã OTP sai hoặc đã hết hạn (30 giây)! Vui lòng gửi lại OTP mới.', 'danger'); return redirect(url_for('view_exam', eid=eid))
-            session.pop(f'otp_{eid}',None)
+        # Check PIN
+        pin_input = request.form.get('pin_input', '').strip()
+        if not pin_code: 
+             flash('❌ Đề thi này chưa được giáo viên thiết lập mã PIN.', 'warning'); return redirect(url_for('view_exam', eid=eid))
+        if pin_input != pin_code:
+            flash('❌ Mã PIN không đúng! Vui lòng nhập đúng mã ca thi mà giáo viên cung cấp.', 'danger'); return redirect(url_for('view_exam', eid=eid))
+        # Success with PIN
             
         row = c.execute("SELECT ten_de, expire_time FROM exams WHERE id=?", (eid,)).fetchone()
         exam_title = row[0] if row else "Đề Thi"
@@ -811,7 +740,7 @@ def view_exam(eid):
     # GET: show form
     row = c.execute("SELECT ten_de, auth_mode FROM exams WHERE id=?", (eid,)).fetchone()
     exam_title = row[0] if row else "Đề Thi"
-    auth_mode = row[1] if row else "both"
+    auth_mode = row[1] if row else "pin"
     return render_template('view_exam.html', exam_title=exam_title, eid=eid, auth_mode=auth_mode)
 
 @app.route('/download_encrypted/<int:eid>')
@@ -1787,11 +1716,11 @@ def edit_exam(eid):
         new_release_date = request.form['release_date']
         new_release_time = request.form['release_time']
         new_duration = int(request.form.get('expire_minutes', 60))
-        new_auth_mode = request.form.get('auth_mode', 'both')
+        new_auth_mode = request.form.get('auth_mode', 'pin')
         new_pin_code = request.form.get('pin_code', '').strip()
         
         # Auto-generate PIN if missing but required by mode
-        if new_auth_mode in ['pin', 'both'] and not new_pin_code:
+        if new_auth_mode in ['pin'] and not new_pin_code:
             new_pin_code = ''.join(secrets.choice('0123456789') for _ in range(6))
         
         # Note: We DO NOT update allowed_groups or allowed_students here to prevent data corruption.
