@@ -37,7 +37,7 @@
                 <div class="col-md-6">
                     <p><strong>Username:</strong> {{ submission[7] }}</p>
                     <p><strong>File nộp:</strong> {{ submission[3] }}</p>
-                    <p><strong>Thời gian nộp:</strong> {{ submission[4] }}</p>
+                    <p><strong>Thời gian nộp:</strong> {{ submission[4] | format_datetime }}</p>
                 </div>
             </div>
         </div>

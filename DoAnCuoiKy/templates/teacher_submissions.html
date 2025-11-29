@@ -37,7 +37,7 @@
                             <td>{{ sub[2] or '-' }}</td>
                             <td>{{ sub[1] }}</td>
                             <td><i class="fas fa-file-pdf text-danger"></i> {{ sub[4] }}</td>
-                            <td>{{ sub[5] }}</td>
+                            <td>{{ sub[5] | format_datetime }}</td>
                             <td>
                                 {% if sub[6] is not none %}
                                 <span class="badge bg-success fs-6">{{ sub[6] }}/10</span>

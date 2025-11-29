@@ -33,7 +33,7 @@
                             <td>{{ loop.index }}</td>
                             <td>{{ sub[1] }}</td>
                             <td><i class="fas fa-file-pdf text-danger"></i> {{ sub[2] }}</td>
-                            <td>{{ sub[3] }}</td>
+                            <td>{{ sub[3] | format_datetime }}</td>
                             <td>
                                 {% if sub[4] is not none %}
                                 <span class="badge bg-success fs-6">{{ sub[4] }}/10</span>
@@ -49,9 +49,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <a href="{{ url_for('download_submission', sid=sub[0]) }}" class="btn btn-sm btn-primary" title="Tải xuống bài làm">
-                                    <i class="fas fa-download"></i> Tải
-                                </a>
+                                <span class="text-muted">-</span>
                             </td>
                         </tr>
                         {% endfor %}

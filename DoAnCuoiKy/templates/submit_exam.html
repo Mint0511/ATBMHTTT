@@ -43,7 +43,7 @@
         </div>
         <div class="card-body">
             <p><strong>File:</strong> {{ existing[1] }}</p>
-            <p><strong>Thời gian nộp:</strong> {{ existing[2] }}</p>
+            <p><strong>Thời gian nộp:</strong> {{ existing[2] | format_datetime }}</p>
             {% if existing[3] is not none %}
             <p><strong>Điểm:</strong> <span class="badge bg-primary fs-5">{{ existing[3] }}/10</span></p>
             {% if existing[4] %}

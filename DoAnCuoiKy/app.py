@@ -241,15 +241,38 @@ def parse_datetime(datetime_str):
         return datetime.datetime.fromisoformat(datetime_str)
     except:
         try:
-            # Try standard format without microseconds
+            # Try standard format without microseconds (with T)
             return datetime.datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
         except:
             try:
-                # Try with seconds
+                # Try with seconds (with T)
                 return datetime.datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M:%S')
             except:
-                # Last resort: return current time
-                return datetime.datetime.now()
+                try:
+                    # Try format with space instead of T
+                    return datetime.datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+                except:
+                    try:
+                        # Try format with space and no seconds
+                        return datetime.datetime.strptime(datetime_str, '%Y-%m-%d %H:%M')
+                    except:
+                        # Last resort: return current time
+                        return datetime.datetime.now()
+
+# Jinja2 template filter for formatting datetime
+@app.template_filter('format_datetime')
+def format_datetime_filter(datetime_str):
+    """Convert datetime string to user-friendly Vietnamese format: DD/MM/YYYY HH:MM:SS"""
+    if not datetime_str:
+        return ''
+    try:
+        # Parse the datetime string
+        dt = parse_datetime(datetime_str)
+        if dt:
+            return dt.strftime('%d/%m/%Y %H:%M:%S')
+    except:
+        pass
+    return datetime_str
 
 def sign_data(data, private_key_pem):
     """Sign data with RSA private key"""
@@ -1965,6 +1988,13 @@ def download_submission(sid):
     
     # Decrypt and send
     try:
+        # Convert to absolute path if relative
+        if not os.path.isabs(enc_path):
+            enc_path = os.path.abspath(enc_path)
+        
+        if not os.path.exists(enc_path):
+            return f"Lỗi giải mã: [Errno 2] No such file or directory: '{enc_path}'"
+        
         with open(enc_path, 'rb') as f:
             data = base64.b64decode(f.read())
         
@@ -1974,8 +2004,12 @@ def download_submission(sid):
         student_row = c.execute("SELECT rsa_private FROM users WHERE id=?", (student_id,)).fetchone()
         sub_row = c.execute("SELECT encrypted_aes_key FROM submissions WHERE id=?", (sid,)).fetchone()
         
-        if student_row and sub_row:
-            decrypted_aes_key = rsa_decrypt_key(sub_row[0], student_row[0])
+        if student_row and sub_row and student_row[0] and sub_row[0]:
+            # Convert memoryview to bytes if needed
+            private_key_pem = bytes(student_row[0]) if isinstance(student_row[0], memoryview) else student_row[0]
+            encrypted_aes_key = bytes(sub_row[0]) if isinstance(sub_row[0], memoryview) else sub_row[0]
+            
+            decrypted_aes_key = rsa_decrypt_key(encrypted_aes_key, private_key_pem)
             decryptor = Cipher(algorithms.AES(decrypted_aes_key), modes.GCM(iv, tag)).decryptor()
             decrypted = decryptor.update(ct) + decryptor.finalize()
             
@@ -2003,6 +2037,13 @@ def view_submission(sid):
     
     # Decrypt and send as inline PDF
     try:
+        # Convert to absolute path if relative
+        if not os.path.isabs(enc_path):
+            enc_path = os.path.abspath(enc_path)
+        
+        if not os.path.exists(enc_path):
+            return f"Lỗi giải mã: [Errno 2] No such file or directory: '{enc_path}'"
+        
         with open(enc_path, 'rb') as f:
             data = base64.b64decode(f.read())
         
@@ -2012,8 +2053,12 @@ def view_submission(sid):
         student_row = c.execute("SELECT rsa_private FROM users WHERE id=?", (student_id,)).fetchone()
         sub_row = c.execute("SELECT encrypted_aes_key FROM submissions WHERE id=?", (sid,)).fetchone()
         
-        if student_row and sub_row:
-            decrypted_aes_key = rsa_decrypt_key(sub_row[0], student_row[0])
+        if student_row and sub_row and student_row[0] and sub_row[0]:
+            # Convert memoryview to bytes if needed
+            private_key_pem = bytes(student_row[0]) if isinstance(student_row[0], memoryview) else student_row[0]
+            encrypted_aes_key = bytes(sub_row[0]) if isinstance(sub_row[0], memoryview) else sub_row[0]
+            
+            decrypted_aes_key = rsa_decrypt_key(encrypted_aes_key, private_key_pem)
             decryptor = Cipher(algorithms.AES(decrypted_aes_key), modes.GCM(iv, tag)).decryptor()
             decrypted = decryptor.update(ct) + decryptor.finalize()
             

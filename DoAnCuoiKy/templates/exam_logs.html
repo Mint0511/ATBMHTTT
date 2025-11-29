@@ -27,17 +27,6 @@
                 </div>
             </div>
             <div class="card-body">
-                <!-- Evidence Explanation Block -->
-                <div class="alert alert-warning border-warning">
-                    <h6 class="alert-heading fw-bold"><i class="fas fa-gavel"></i> Bằng Chứng Kỹ Thuật Số (Non-repudiation)</h6>
-                    <p class="mb-0 small">
-                        Danh sách dưới đây là bằng chứng xác thực từ hệ thống. Mỗi dòng ghi nhận tương ứng với một lần sinh viên thực hiện thành công quy trình:
-                        <strong>Xác thực (OTP/PIN) <i class="fas fa-arrow-right"></i> Nhận Khóa Giải Mã <i class="fas fa-arrow-right"></i> Giải Mã File PDF</strong>.
-                        <br>
-                        <em>Dữ liệu này có thể dùng để đối chứng trong trường hợp sinh viên khiếu nại "không nhận được đề" hoặc "không xem được đề".</em>
-                    </p>
-                </div>
-
                 <!-- Search & Filter -->
                 <div class="row mb-3 d-print-none">
                     <div class="col-md-6">
@@ -66,7 +55,7 @@
                         <tbody>
                             {% for log in logs %}
                             <tr>
-                                <td class="font-monospace">{{ log[3] }}</td>
+                                <td class="font-monospace">{{ log[3] | format_datetime }}</td>
                                 <td><span class="badge bg-secondary font-monospace">{{ log[2] }}</span></td>
                                 <td class="fw-bold text-primary">{{ log[1] }}</td>
                                 <td>{{ log[0] }}</td>
